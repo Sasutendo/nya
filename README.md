@@ -36,12 +36,34 @@ This repository is here to save that spark until it becomes something real.
 * [ ] Build the first working version
 * [ ] Polish and release
 
-## License
+# View and Share Only License
 
-No license has been chosen yet.
+Copyright (c) 2026 Sasutendo
 
-Until a license is added, this project should be considered private-use only, even if the repository is public.
+All rights reserved.
 
----
+This project is publicly visible for viewing and sharing only.
+
+You are allowed to:
+
+* View the project and its files.
+* Share a link to the original repository.
+* Mention or showcase the project with proper credit to Sasutendo.
+
+You are not allowed to:
+
+* Copy this project.
+* Re-upload, mirror, or redistribute this project.
+* Modify, remix, or create derivative versions of this project.
+* Use the code, assets, design, name, or content in your own project.
+* Sell, sublicense, or commercially use any part of this project.
+* Claim this project or any part of it as your own.
+
+No permission is granted except for the permissions clearly listed above.
+
+If you want to use, copy, modify, or redistribute any part of this project, you must ask for written permission from Sasutendo first.
+
+This project is provided “as is,” without warranty of any kind. The author is not responsible for any damages, issues, or problems caused by viewing or using this project.
+
 
 Made with care by **Sasutendo**.
