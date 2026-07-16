@@ -2,7 +2,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useState
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { DEFAULT_SETTINGS } from './lib/demo-data'
-import { getSettings } from './lib/api'
+import { getSettings, watchSettings } from './lib/api'
 import { HomePage } from './pages/HomePage'
 import { LibraryPage } from './pages/LibraryPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -56,6 +56,7 @@ export default function App() {
 
   useEffect(() => {
     getSettings().then(setSettings)
+    return watchSettings(setSettings)
   }, [])
 
   useEffect(() => {

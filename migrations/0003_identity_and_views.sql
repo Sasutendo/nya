@@ -19,8 +19,8 @@ WHERE key = 'site' AND json_valid(value_json) AND json_type(value_json, '$.profi
 UPDATE site_settings
 SET value_json = json_set(
   value_json,
-  '$.siteTitle', 'Nya''s Learning Atelier',
-  '$.eyebrow', 'Nursing training · Berlin learning journal',
+  '$.siteTitle', 'Nya Yuuki''s Learning Corner',
+  '$.eyebrow', 'Nursing training · personal learning journal',
   '$.tagline', 'Carefully learning. Beautifully collected.',
   '$.footerNote', 'A soft, organised home for everything I learn.'
 )

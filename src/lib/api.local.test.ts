@@ -21,7 +21,7 @@ describe('zero-configuration local preview', () => {
   it('loads public content, calendar and settings without an API request', async () => {
     expect((await getPublicItems()).length).toBeGreaterThan(0)
     expect((await getPublicEvents()).every((event) => event.visibility === 'public')).toBe(true)
-    expect((await getSettings()).siteTitle).toBe("Nya's Learning Atelier")
+    expect((await getSettings()).siteTitle).toBe("Nya Yuuki's Learning Corner")
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -52,6 +52,16 @@ describe('zero-configuration local preview', () => {
     const before = (await getPublicItemForTest()).viewCount
     expect(await recordView('welcome-to-my-learning-studio')).toBe(before + 1)
     expect(await recordView('welcome-to-my-learning-studio')).toBe(before + 1)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('persists shared site and profile settings without an API request', async () => {
+    const settings = await getSettings()
+    await adminApi.settings({ ...settings, siteTitle: "Nya Yuuki's Test Corner", profileImageAlt: 'Animated owner profile' })
+    const saved = await getSettings()
+
+    expect(saved.siteTitle).toBe("Nya Yuuki's Test Corner")
+    expect(saved.profileImageAlt).toBe('Animated owner profile')
     expect(fetch).not.toHaveBeenCalled()
   })
 })

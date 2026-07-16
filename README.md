@@ -1,6 +1,6 @@
-# Nya's Learning Atelier
+# Nya Yuuki's Learning Corner
 
-Nya's Learning Atelier is a personal learning portfolio for my nursing training.
+Nya Yuuki's Learning Corner is a personal learning portfolio for my nursing training.
 
 It brings presentations, study notes and practical projects together in one calm, organised space. Published work can be viewed publicly, while the private studio is reserved for creating and managing content.
 
@@ -20,8 +20,10 @@ This project is designed to grow throughout my training. It gives finished schoo
 - A public calendar for milestones and selected training dates
 - A private planner with tasks, deadlines and colourful sticky notes
 - Calendar printing and iCalendar export
-- An editable profile picture and a live Berlin clock
+- An editable profile picture and a live owner clock
+- Automatic settings saving and live visitor synchronization
 - Session-deduplicated public view counting
+- Small, lightweight interactive surprises hidden around the corner
 - A private content studio for the owner
 - Draft and published content states
 - A calm, accessible and professional visual design

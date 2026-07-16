@@ -2,6 +2,7 @@ interface Env {
   DB: D1Database
   MEDIA: R2Bucket
   ASSETS: Fetcher
+  SETTINGS_SYNC: DurableObjectNamespace
   ADMIN_EMAIL: string
   ADMIN_PASSWORD_HASH: string
   SESSION_SECRET: string
@@ -80,6 +81,17 @@ function json(data: unknown, status = 200, extraHeaders?: HeadersInit): Response
 
 function error(message: string, status = 400): Response {
   return json({ error: message }, status)
+}
+
+function settingsSyncStub(env: Env): DurableObjectStub {
+  return env.SETTINGS_SYNC.get(env.SETTINGS_SYNC.idFromName('public-settings'))
+}
+
+async function broadcastSettings(env: Env, settings: unknown): Promise<void> {
+  const response = await settingsSyncStub(env).fetch(new Request('https://settings-sync.internal/broadcast', {
+    method: 'POST', body: JSON.stringify(settings), headers: { 'Content-Type': 'application/json' },
+  }))
+  if (!response.ok) throw new Error('The live settings update could not be broadcast.')
 }
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -550,9 +562,10 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     return recordPublicView(request, slug, env)
   }
   if (request.method === 'GET' && path.startsWith('/api/public/items/')) return publicItem(request, decodeURIComponent(path.slice('/api/public/items/'.length)), env, context)
+  if (request.method === 'GET' && path === '/api/public/settings/live') return settingsSyncStub(env).fetch(request)
   if (request.method === 'GET' && path === '/api/public/settings') {
     const row = await env.DB.prepare("SELECT value_json FROM site_settings WHERE key = 'site'").first<{ value_json: string }>()
-    return json({ settings: parseJson(row?.value_json || '{}', {}) }, 200, { 'Cache-Control': 'public, max-age=60' })
+    return json({ settings: parseJson(row?.value_json || '{}', {}) })
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
   if (request.method === 'GET' && path.startsWith('/api/media/')) return serveMedia(request, decodeURIComponent(path.slice('/api/media/'.length)), env)
@@ -588,6 +601,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
         footerNote: cleanText(settings.footerNote, 180),
       }
       await env.DB.prepare("INSERT INTO site_settings (key,value_json,updated_at) VALUES ('site',?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at").bind(JSON.stringify(safe), new Date().toISOString()).run()
+      context.waitUntil(broadcastSettings(env, safe).catch((reason) => console.error('Settings sync failed', reason)))
       return json({ settings: safe })
     }
     if (request.method === 'POST' && path === '/api/admin/calendar') return saveCalendarEvent(request, env)
@@ -621,6 +635,31 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   }
 
   return error('API route not found.', 404)
+}
+
+export class SettingsSyncRoom {
+  constructor(private readonly state: DurableObjectState) {}
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname === '/broadcast' && request.method === 'POST') {
+      const payload = await request.text()
+      for (const socket of this.state.getWebSockets()) {
+        try { socket.send(payload) } catch { try { socket.close(1011, 'Update delivery failed') } catch { /* Already closed. */ } }
+      }
+      return new Response(null, { status: 204 })
+    }
+
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return error('A WebSocket connection is required.', 426)
+    const pair = new WebSocketPair()
+    const [client, server] = Object.values(pair)
+    this.state.acceptWebSocket(server)
+    return new Response(null, { status: 101, webSocket: client })
+  }
+
+  webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) {
+    if (message === 'ping') socket.send('pong')
+  }
 }
 
 export default {

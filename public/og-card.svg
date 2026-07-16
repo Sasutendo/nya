@@ -4,7 +4,7 @@
   <circle cx="1120" cy="580" r="300" fill="#eadff0"/>
   <rect x="90" y="80" width="74" height="74" rx="21" fill="#7b4d61"/>
   <path d="M111 134v-34h9l22 19v-19h9v34h-9l-22-19v19z" fill="#fff4f8"/>
-  <text x="90" y="260" fill="#3b2b33" font-family="system-ui, sans-serif" font-size="76" font-weight="700">Nya's Learning Atelier</text>
+  <text x="90" y="260" fill="#3b2b33" font-family="system-ui, sans-serif" font-size="66" font-weight="700">Nya Yuuki's Learning Corner</text>
   <text x="94" y="335" fill="#78636c" font-family="system-ui, sans-serif" font-size="34">Carefully learning. Beautifully collected.</text>
   <rect x="94" y="410" width="340" height="6" rx="3" fill="#d68191"/>
 </svg>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ChevronUp, Copy, FileText, FolderKanban, Image,
   LayoutDashboard, LoaderCircle, LockKeyhole, LogOut, MonitorPlay, Paperclip, Plus, Presentation,
@@ -472,27 +472,62 @@ export function StudioSettingsPage() {
   const { settings, setSettings } = useSite()
   const [draft, setDraft] = useState<SiteSettings>(settings)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState('All changes save automatically.')
+  const lastSaved = useRef(JSON.stringify(settings))
 
-  useEffect(() => setDraft(settings), [settings])
+  useEffect(() => {
+    const previousSaved = lastSaved.current
+    const incoming = JSON.stringify(settings)
+    lastSaved.current = incoming
+    setDraft((current) => JSON.stringify(current) === previousSaved ? settings : current)
+  }, [settings])
+
+  useEffect(() => {
+    if (!session?.authenticated) return
+    const serialized = JSON.stringify(draft)
+    if (serialized === lastSaved.current) {
+      setSaving(false)
+      setMessage('All changes are saved and shared live.')
+      return
+    }
+    let active = true
+    setSaving(true)
+    setMessage('Saving and syncing…')
+    const timer = window.setTimeout(() => {
+      adminApi.settings(draft).then((result) => {
+        if (!active) return
+        lastSaved.current = JSON.stringify(result.settings)
+        setSettings(result.settings)
+        setMessage('Saved and synced live.')
+      }).catch((reason) => {
+        if (active) setMessage(reason instanceof Error ? reason.message : 'Settings could not be saved.')
+      }).finally(() => { if (active) setSaving(false) })
+    }, 300)
+    return () => { active = false; window.clearTimeout(timer) }
+  }, [draft, session?.authenticated, setSettings])
   if (session === undefined) return <div className="page-shell section-shell"><LoadingState /></div>
   if (!session?.authenticated) return <Navigate to="/studio/login" state={{ from: '/studio/settings' }} replace />
 
   function field<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) { setDraft((current) => ({ ...current, [key]: value })) }
   async function save(event: React.FormEvent) {
-    event.preventDefault(); setSaving(true); setMessage('')
-    try { const result = await adminApi.settings(draft); setSettings(result.settings); setMessage('Settings saved.') }
+    event.preventDefault(); setSaving(true); setMessage('Saving and syncing…')
+    try {
+      const result = await adminApi.settings(draft)
+      lastSaved.current = JSON.stringify(result.settings)
+      setSettings(result.settings)
+      setMessage('Saved and synced live.')
+    }
     catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Settings could not be saved.') }
     finally { setSaving(false) }
   }
 
   return (
     <div className="settings-page page-shell section-shell">
-      <header className="studio-header"><div><Link to="/studio" className="back-link"><ArrowLeft size={16} />Back to studio</Link><p className="eyebrow"><Settings size={15} />Site settings</p><h1>Make the atelier yours</h1><p>Update your public identity, profile picture and the words used across the site.</p></div><StudioNav /></header>
+      <header className="studio-header"><div><Link to="/studio" className="back-link"><ArrowLeft size={16} />Back to studio</Link><p className="eyebrow"><Settings size={15} />Site settings</p><h1>Make the corner yours</h1><p>Update your public identity, profile picture and the words used across the site.</p></div><StudioNav /></header>
       <form className="editor-panel settings-form" onSubmit={save}>
         <div className="profile-settings-card">
           <div className="profile-settings-preview"><img src={draft.profileImage} alt={draft.profileImageAlt} /><span aria-hidden="true" /></div>
-          <div><p className="eyebrow">Profile picture</p><h2>Your public profile</h2><p>PNG, JPG, WebP and animated GIFs work here. The image appears beside your Berlin time and in the site header.</p><MediaUpload label="Choose profile picture" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" onUploaded={(asset) => field('profileImage', asset.url)} /></div>
+          <div><p className="eyebrow">Profile picture</p><h2>Your public profile</h2><p>PNG, JPG, WebP and animated GIFs work here. Once uploaded, the image saves automatically and updates for connected visitors.</p><MediaUpload label="Choose profile picture" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" onUploaded={(asset) => field('profileImage', asset.url)} /></div>
         </div>
         <div className="form-grid">
           <label>Site title<input value={draft.siteTitle} onChange={(event) => field('siteTitle', event.target.value)} /></label>
@@ -504,7 +539,7 @@ export function StudioSettingsPage() {
           <label className="span-2">Training status<input value={draft.trainingLabel} onChange={(event) => field('trainingLabel', event.target.value)} /></label>
           <label className="span-2">Footer note<input value={draft.footerNote} onChange={(event) => field('footerNote', event.target.value)} /></label>
         </div>
-        <div className="settings-actions">{message && <span>{message}</span>}<button type="submit" className="button button-primary" disabled={saving}>{saving ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{saving ? 'Saving…' : 'Save settings'}</button></div>
+        <div className="settings-actions">{message && <span className={saving ? 'is-saving' : ''}>{saving ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}{message}</span>}<button type="submit" className="button button-primary" disabled={saving}>{saving ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{saving ? 'Saving…' : 'Save now'}</button></div>
       </form>
     </div>
   )

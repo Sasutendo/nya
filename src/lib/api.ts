@@ -11,6 +11,7 @@ const LOCAL_EVENTS_KEY = 'nya-local-calendar-v1'
 const LOCAL_NOTES_KEY = 'nya-local-stickies-v1'
 const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
 const LOCAL_VIEW_PREFIX = 'nya-local-viewed-v1:'
+const SETTINGS_CHANNEL = 'nya-settings-sync-v1'
 const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true'
 
 class ApiError extends Error {
@@ -43,7 +44,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 function readLocalItems(): ContentItem[] {
   try {
     const saved = localStorage.getItem(LOCAL_ITEMS_KEY)
-    if (saved) return JSON.parse(saved) as ContentItem[]
+    if (saved) {
+      const items = JSON.parse(saved) as ContentItem[]
+      const migrated = items.map((item) => {
+        if (item.id !== 'demo_presentation' || item.content.kind !== 'presentation') return item
+        const slides = item.content.slides.map((slide, index) => index === 0 && ['Nya Learning Studio', "Nya's Learning Atelier"].includes(slide.eyebrow || '') ? { ...slide, eyebrow: "Nya Yuuki's Learning Corner" } : slide)
+        const title = ['Welcome to my learning studio', 'Welcome to my learning atelier'].includes(item.title) ? 'Welcome to my learning corner' : item.title
+        return { ...item, title, content: { ...item.content, slides } }
+      })
+      if (JSON.stringify(migrated) !== saved) localStorage.setItem(LOCAL_ITEMS_KEY, JSON.stringify(migrated))
+      return migrated
+    }
   } catch { /* Start again with safe demo data. */ }
   const starter = structuredClone(DEMO_ITEMS)
   localStorage.setItem(LOCAL_ITEMS_KEY, JSON.stringify(starter))
@@ -99,13 +110,18 @@ function writeLocalItems(items: ContentItem[]) {
   }
 }
 
+function normaliseSettings(settings: Partial<SiteSettings>): SiteSettings {
+  const parsed = { ...DEFAULT_SETTINGS, ...settings }
+  if (parsed.siteTitle === 'Nya Learning Studio' || parsed.siteTitle === "Nya's Learning Atelier") parsed.siteTitle = DEFAULT_SETTINGS.siteTitle
+  if (parsed.eyebrow === 'Nursing training · Berlin learning journal') parsed.eyebrow = DEFAULT_SETTINGS.eyebrow
+  return parsed
+}
+
 function readLocalSettings(): SiteSettings {
   try {
     const saved = localStorage.getItem(LOCAL_SETTINGS_KEY)
     if (!saved) return DEFAULT_SETTINGS
-    const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } as SiteSettings
-    if (parsed.siteTitle === 'Nya Learning Studio') parsed.siteTitle = DEFAULT_SETTINGS.siteTitle
-    return parsed
+    return normaliseSettings(JSON.parse(saved) as Partial<SiteSettings>)
   } catch { return DEFAULT_SETTINGS }
 }
 
@@ -222,9 +238,58 @@ export async function getSettings(): Promise<SiteSettings> {
   if (LOCAL_DEMO) return readLocalSettings()
   try {
     const result = await request<{ settings: SiteSettings }>('/api/public/settings')
-    return { ...DEFAULT_SETTINGS, ...result.settings }
+    return normaliseSettings(result.settings)
   } catch {
     return DEFAULT_SETTINGS
+  }
+}
+
+export function watchSettings(onSettings: (settings: SiteSettings) => void): () => void {
+  let stopped = false
+  const deliver = (settings: Partial<SiteSettings>) => { if (!stopped) onSettings(normaliseSettings(settings)) }
+
+  if (LOCAL_DEMO) {
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(SETTINGS_CHANNEL) : null
+    const onMessage = (event: MessageEvent<Partial<SiteSettings>>) => deliver(event.data)
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== LOCAL_SETTINGS_KEY || !event.newValue) return
+      try { deliver(JSON.parse(event.newValue) as Partial<SiteSettings>) } catch { /* Ignore incomplete writes. */ }
+    }
+    channel?.addEventListener('message', onMessage)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      stopped = true
+      channel?.removeEventListener('message', onMessage)
+      channel?.close()
+      window.removeEventListener('storage', onStorage)
+    }
+  }
+
+  let socket: WebSocket | null = null
+  let reconnectTimer: number | undefined
+  const refresh = () => getSettings().then(deliver).catch(() => undefined)
+  const connect = () => {
+    if (stopped) return
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    socket = new WebSocket(`${protocol}//${window.location.host}/api/public/settings/live`)
+    socket.addEventListener('message', (event) => {
+      try { deliver(JSON.parse(String(event.data)) as Partial<SiteSettings>) } catch { /* Keep the last valid settings. */ }
+    })
+    socket.addEventListener('close', () => {
+      if (!stopped) reconnectTimer = window.setTimeout(connect, 1_500)
+    })
+    socket.addEventListener('error', () => socket?.close())
+  }
+  connect()
+  const pollTimer = window.setInterval(refresh, 30_000)
+  const onVisibility = () => { if (document.visibilityState === 'visible') refresh() }
+  document.addEventListener('visibilitychange', onVisibility)
+  return () => {
+    stopped = true
+    if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer)
+    window.clearInterval(pollTimer)
+    document.removeEventListener('visibilitychange', onVisibility)
+    socket?.close()
   }
 }
 
@@ -312,8 +377,14 @@ export const adminApi = {
   },
   settings: async (settings: SiteSettings): Promise<{ settings: SiteSettings }> => {
     if (LOCAL_DEMO) {
-      localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings))
-      return { settings }
+      const saved = normaliseSettings(settings)
+      localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(saved))
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel(SETTINGS_CHANNEL)
+        channel.postMessage(saved)
+        channel.close()
+      }
+      return { settings: saved }
     }
     return request<{ settings: SiteSettings }>('/api/admin/settings', { method: 'PUT', body: JSON.stringify(settings) })
   },

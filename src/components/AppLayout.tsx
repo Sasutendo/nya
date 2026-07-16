@@ -3,7 +3,8 @@ import { BookOpen, CalendarDays, FileText, FolderKanban, LockKeyhole, Menu, Moon
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
 import { classes } from '../lib/format'
-import { BerlinClock } from './BerlinClock'
+import { EasterEggs } from './EasterEggs'
+import { OwnerClock } from './OwnerClock'
 
 const navigation = [
   { to: '/library', label: 'Library', icon: BookOpen },
@@ -35,7 +36,7 @@ export function AppLayout() {
           </Link>
 
           <div className="header-actions">
-            <BerlinClock />
+            <OwnerClock />
             <button type="button" className="icon-button theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
               {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
@@ -72,12 +73,13 @@ export function AppLayout() {
       <footer className="site-footer">
         <div className="footer-inner">
           <div>
-            <span className="footer-mark" aria-hidden="true">N</span>
+            <button type="button" className="footer-mark easter-trigger" onClick={() => window.dispatchEvent(new Event('nya:surprise'))} aria-label="Open a tiny corner surprise" title="There might be a tiny surprise here">N</button>
             <p><strong>{settings.siteTitle}</strong><br />{settings.footerNote}</p>
           </div>
           <p className="footer-meta">© {new Date().getFullYear()} {settings.ownerName} · Public to read, private to edit.</p>
         </div>
       </footer>
+      <EasterEggs ownerName={settings.ownerName} />
     </div>
   )
 }

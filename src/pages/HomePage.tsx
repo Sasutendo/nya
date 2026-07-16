@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
-import { BerlinClock } from '../components/BerlinClock'
+import { OwnerClock } from '../components/OwnerClock'
 import { ContentCard } from '../components/ContentCard'
 import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicEvents, getPublicItems } from '../lib/api'
@@ -50,8 +50,8 @@ export function HomePage() {
           </form>
           <div className="profile-presence">
             <div className="profile-avatar-wrap"><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></div>
-            <div className="profile-presence-copy"><small>Currently learning with</small><strong>{settings.ownerName}</strong><span>Pflegefachkraft journey · Berlin</span></div>
-            <BerlinClock detailed />
+            <div className="profile-presence-copy"><small>Currently learning with</small><strong>{settings.ownerName}</strong><span>Pflegefachkraft journey in progress</span></div>
+            <OwnerClock detailed />
           </div>
           <div className="hero-note">
             <span className="status-dot" />
@@ -74,6 +74,8 @@ export function HomePage() {
           <span className="site-sticker sticker-heart">♡</span>
           <span className="site-sticker sticker-study">study mode</span>
           <span className="site-sticker sticker-spark">✦</span>
+          <span className="site-sticker sticker-care">tiny wins club</span>
+          <span className="site-sticker sticker-cross">+</span>
         </div>
       </section>
 

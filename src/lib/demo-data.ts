@@ -3,11 +3,11 @@ import type { ContentItem, SiteSettings } from '../types'
 const now = new Date().toISOString()
 
 export const DEFAULT_SETTINGS: SiteSettings = {
-  siteTitle: "Nya's Learning Atelier",
+  siteTitle: "Nya Yuuki's Learning Corner",
   ownerName: 'Yuuki',
   profileImage: '/images/yuuki-profile.png',
   profileImageAlt: 'Yuuki profile picture',
-  eyebrow: 'Nursing training · Berlin learning journal',
+  eyebrow: 'Nursing training · personal learning journal',
   tagline: 'Carefully learning. Beautifully collected.',
   introduction:
     'A growing collection of presentations, study notes and practical projects from my journey to becoming a qualified nurse.',
@@ -20,7 +20,7 @@ export const DEMO_ITEMS: ContentItem[] = [
     id: 'demo_presentation',
     type: 'presentation',
     slug: 'welcome-to-my-learning-studio',
-    title: 'Welcome to my learning atelier',
+    title: 'Welcome to my learning corner',
     excerpt: 'A short tour of how presentations, notes and projects live together in this archive.',
     category: 'Orientation',
     tags: ['Welcome', 'Portfolio'],
@@ -34,7 +34,7 @@ export const DEMO_ITEMS: ContentItem[] = [
           id: 'slide_1',
           layout: 'title',
           tone: 'sage',
-          eyebrow: "Nya's Learning Atelier",
+          eyebrow: "Nya Yuuki's Learning Corner",
           title: 'Learning, documented with care.',
           body: 'Presentations, notes and projects from my nursing training — organised in one calm, public archive.',
           animation: 'rise',
