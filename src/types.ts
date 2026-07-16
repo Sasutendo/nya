@@ -97,4 +97,5 @@ export interface ApiErrorShape {
 export interface SessionState {
   authenticated: boolean
   email?: string
+  setupRequired?: boolean
 }

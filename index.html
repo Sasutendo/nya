@@ -11,6 +11,14 @@
     <meta property="og:image" content="/og-card.svg" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('nya-theme');
+        document.documentElement.dataset.theme = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme
+          : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (_) {}
+    </script>
     <title>Nya Learning Studio</title>
   </head>
   <body>

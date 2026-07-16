@@ -20,10 +20,18 @@ interface SiteContextValue {
   setSettings: (settings: SiteSettings) => void
 }
 
+type Theme = 'light' | 'dark'
+interface ThemeContextValue { theme: Theme; toggleTheme: () => void }
+
 const SiteContext = createContext<SiteContextValue>({ settings: DEFAULT_SETTINGS, setSettings: () => undefined })
+const ThemeContext = createContext<ThemeContextValue>({ theme: 'light', toggleTheme: () => undefined })
 
 export function useSite() {
   return useContext(SiteContext)
+}
+
+export function useTheme() {
+  return useContext(ThemeContext)
 }
 
 function ScrollToTop() {
@@ -36,15 +44,30 @@ function ScrollToTop() {
 
 export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      const saved = localStorage.getItem('nya-theme')
+      if (saved === 'light' || saved === 'dark') return saved
+    } catch { /* Follow the device preference. */ }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
 
   useEffect(() => {
     getSettings().then(setSettings)
   }, [])
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#171d1a' : '#3b4f42')
+    try { localStorage.setItem('nya-theme', theme) } catch { /* The theme still works for this visit. */ }
+  }, [theme])
+
   const contextValue = useMemo(() => ({ settings, setSettings }), [settings])
+  const themeValue = useMemo(() => ({ theme, toggleTheme: () => setTheme((current) => current === 'light' ? 'dark' : 'light') }), [theme])
 
   return (
-    <SiteContext.Provider value={contextValue}>
+    <ThemeContext.Provider value={themeValue}>
+      <SiteContext.Provider value={contextValue}>
       <ScrollToTop />
       <Suspense fallback={<div className="route-loading" role="status">Opening…</div>}>
       <Routes>
@@ -65,6 +88,7 @@ export default function App() {
         <Route path="present/:slug" element={<PresentationPage />} />
       </Routes>
       </Suspense>
-    </SiteContext.Provider>
+      </SiteContext.Provider>
+    </ThemeContext.Provider>
   )
 }

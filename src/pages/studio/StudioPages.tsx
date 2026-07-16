@@ -46,14 +46,19 @@ function StudioNav() {
 export function StudioLoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [session, setSession] = useState<GuardState>(undefined)
   const navigate = useNavigate()
   const location = useLocation()
+  const setupMode = Boolean(session?.setupRequired)
 
   useEffect(() => {
-    authApi.session().then(setSession).catch(() => setSession(null))
+    authApi.session().then((result) => {
+      setSession(result)
+      if (result.email) setEmail(result.email)
+    }).catch(() => setSession(null))
   }, [])
 
   async function submit(event: React.FormEvent) {
@@ -61,7 +66,12 @@ export function StudioLoginPage() {
     setError('')
     setSubmitting(true)
     try {
-      await authApi.login(email.trim(), password)
+      if (setupMode) {
+        if (password !== confirmPassword) throw new Error('The two passwords do not match.')
+        await authApi.setupLocalPassword(email.trim(), password)
+      } else {
+        await authApi.login(email.trim(), password)
+      }
       const destination = (location.state as { from?: string } | null)?.from || '/studio'
       navigate(destination, { replace: true })
     } catch (reason) {
@@ -79,14 +89,15 @@ export function StudioLoginPage() {
         <div className="login-mark"><LockKeyhole size={25} /></div>
         <p className="eyebrow">Private workspace</p>
         <h1>Owner studio</h1>
-        <p>Sign in to create, upload and publish. Visitors never see this workspace.</p>
-        {import.meta.env.DEV && <div className="local-preview-note"><MonitorPlay size={17} /><span><strong>Local preview mode</strong>Use any email and a password with at least four characters. Test content stays in this browser.</span></div>}
+        <p>{setupMode ? 'Create your private password for this local preview.' : 'Sign in to create, upload and publish. Visitors never see this workspace.'}</p>
+        {import.meta.env.DEV && <div className="local-preview-note"><MonitorPlay size={17} /><span><strong>{setupMode ? 'First-time local setup' : 'Local preview mode'}</strong>{setupMode ? 'Your password is hashed in this browser and never added to the source code.' : 'Your test content and owner session stay only in this browser.'}</span></div>}
         {error && <ErrorNotice message={error} />}
         <form onSubmit={submit} className="form-stack">
-          <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label>
-          <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
+          <label>{setupMode ? 'Create owner email' : 'Email'}<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" readOnly={import.meta.env.DEV && !setupMode} required />{setupMode && <small>This remains in your browser for the local preview and is not written into the project.</small>}</label>
+          <label>{setupMode ? 'Create password' : 'Password'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={setupMode ? 'new-password' : 'current-password'} minLength={setupMode ? 12 : undefined} required /></label>
+          {setupMode && <label>Confirm password<input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={12} required /><small>Use at least 12 characters. A short sentence is easy to remember and hard to guess.</small></label>}
           <button className="button button-primary" type="submit" disabled={submitting}>
-            {submitting ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={17} />}{submitting ? 'Signing in…' : 'Sign in securely'}
+            {submitting ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={17} />}{submitting ? (setupMode ? 'Creating password…' : 'Signing in…') : (setupMode ? 'Create password and enter' : 'Sign in securely')}
           </button>
         </form>
         <Link to="/" className="back-link"><ArrowLeft size={16} />Return to the public site</Link>

@@ -15,6 +15,7 @@ This project is designed to grow throughout my training. It gives finished schoo
 - Dedicated areas for presentations, notes and projects
 - Support for images, video, audio and downloadable resources
 - Responsive layouts for phones, tablets and computers
+- Cozy light and dark themes with a saved personal preference
 - A private content studio for the owner
 - Draft and published content states
 - A calm, accessible and professional visual design
