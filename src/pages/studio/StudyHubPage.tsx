@@ -7,6 +7,7 @@ import { Navigate } from 'react-router-dom'
 import { EmptyState, ErrorNotice, LoadingState } from '../../components/Feedback'
 import { adminApi } from '../../lib/api'
 import { newId } from '../../lib/format'
+import { unlockAchievement } from '../../lib/achievements'
 import type { NursingSkill, NursingSkillStatus, StudyCard, StudyHubData, StudyReflection } from '../../types'
 import { StudioNav, useStudioSession } from './StudioPages'
 
@@ -69,6 +70,7 @@ export function StudyHubPage() {
     if (seconds !== 0) return
     setTimerRunning(false)
     setFocusRounds((rounds) => rounds + 1)
+    unlockAchievement('focus_round')
     setTimerMessage(timerMode === 'reset' ? 'Soft reset complete — welcome back ♡' : 'Focus round complete — tiny win collected ✦')
     setSeconds(timerMinutes * 60)
     window.dispatchEvent(new CustomEvent('nya:surprise', { detail: 'care' }))

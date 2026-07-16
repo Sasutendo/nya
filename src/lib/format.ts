@@ -1,4 +1,5 @@
 import type { ContentItem, ItemType } from '../types'
+import type { Language } from './i18n'
 
 export function slugify(value: string): string {
   return value
@@ -37,6 +38,29 @@ export function readingTime(item: ContentItem): string {
   if (item.readingMinutes) return `${item.readingMinutes} min read`
   const words = item.content.body.trim().split(/\s+/).filter(Boolean).length
   return `${Math.max(1, Math.ceil(words / 210))} min read`
+}
+
+export function formatDateLocalized(value: string | undefined, long: boolean, language: Language): string {
+  if (!value) return language === 'de' ? 'Nicht veröffentlicht' : 'Not published'
+  return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-GB', { day: 'numeric', month: long ? 'long' : 'short', year: 'numeric' }).format(new Date(value))
+}
+
+export function itemTypeLabelLocalized(type: ItemType, plural: boolean, language: Language): string {
+  if (language === 'en') return itemTypeLabel(type, plural)
+  const labels: Record<ItemType, [string, string]> = {
+    presentation: ['Präsentation', 'Präsentationen'], note: ['Notiz', 'Notizen'], project: ['Projekt', 'Projekte'],
+  }
+  return labels[type][plural ? 1 : 0]
+}
+
+export function readingTimeLocalized(item: ContentItem, language: Language): string {
+  if (language === 'en') return readingTime(item)
+  if (item.content.kind === 'presentation') {
+    const minutes = Math.max(1, Math.round((item.slideCount || item.content.slides.length) * .75))
+    return `${minutes} Min. Präsentation`
+  }
+  const minutes = item.readingMinutes || Math.max(1, Math.ceil(item.content.body.trim().split(/\s+/).filter(Boolean).length / 210))
+  return `${minutes} Min. Lesezeit`
 }
 
 export function normaliseTags(value: string): string[] {

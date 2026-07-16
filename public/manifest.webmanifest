@@ -1,7 +1,7 @@
 {
   "name": "Nya Yuuki's Learning Corner",
   "short_name": "Nya",
-  "description": "Presentations, study notes and projects from nursing training.",
+  "description": "Präsentationen, Lernnotizen und Projekte aus der Pflegeausbildung.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#faeef2",

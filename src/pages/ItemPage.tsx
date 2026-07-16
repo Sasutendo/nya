@@ -7,10 +7,12 @@ import { ContentCard } from '../components/ContentCard'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicItem, getPublicItems, recordView } from '../lib/api'
-import { formatDate, itemTypeLabel, readingTime } from '../lib/format'
+import { formatDateLocalized, itemTypeLabelLocalized, readingTimeLocalized } from '../lib/format'
+import { useLanguage } from '../lib/i18n'
 import type { ContentItem } from '../types'
 
 export function ItemPage() {
+  const { language, text } = useLanguage()
   const { slug = '' } = useParams()
   const [item, setItem] = useState<ContentItem | null | undefined>(undefined)
   const [related, setRelated] = useState<ContentItem[]>([])
@@ -32,31 +34,31 @@ export function ItemPage() {
     window.setTimeout(() => setCopied(false), 1800)
   }
 
-  if (item === undefined) return <div className="page-shell section-shell"><LoadingState label="Opening this work…" /></div>
-  if (!item) return <div className="page-shell section-shell"><EmptyState title="This page is not here" message="It may still be a private draft, or the link may have changed." /></div>
+  if (item === undefined) return <div className="page-shell section-shell"><LoadingState label={text('Opening this work…', 'Arbeit wird geöffnet…')} /></div>
+  if (!item) return <div className="page-shell section-shell"><EmptyState title={text('This page is not here', 'Diese Seite ist nicht da')} message={text('It may still be a private draft, or the link may have changed.', 'Vielleicht ist sie noch ein privater Entwurf oder der Link hat sich geändert.')} /></div>
 
   const previewAssets = item.assets.filter((asset) => ['image', 'video', 'audio'].includes(asset.kind))
 
   return (
     <article className={`item-page type-${item.type}`}>
       <header className="item-hero section-shell">
-        <Link to={`/${item.type === 'presentation' ? 'presentations' : `${item.type}s`}`} className="back-link"><ArrowLeft size={17} />Back to {itemTypeLabel(item.type, true).toLowerCase()}</Link>
+        <Link to={`/${item.type === 'presentation' ? 'presentations' : `${item.type}s`}`} className="back-link"><ArrowLeft size={17} />{text('Back to', 'Zurück zu')} {itemTypeLabelLocalized(item.type, true, language).toLowerCase()}</Link>
         <div className="item-hero-grid">
           <div>
-            <p className="eyebrow">{itemTypeLabel(item.type)} · {item.category}</p>
+            <p className="eyebrow">{itemTypeLabelLocalized(item.type, false, language)} · {item.category}</p>
             <h1>{item.title}</h1>
             <p className="item-lead">{item.excerpt}</p>
             <div className="item-meta">
-              <span><Clock3 size={15} />{readingTime(item)}</span>
-              <span><Eye size={15} />{item.viewCount.toLocaleString('en-GB')} views</span>
-              <span>Updated {formatDate(item.updatedAt, true)}</span>
+              <span><Clock3 size={15} />{readingTimeLocalized(item, language)}</span>
+              <span><Eye size={15} />{item.viewCount.toLocaleString(language === 'de' ? 'de-DE' : 'en-GB')} {text('views', 'Aufrufe')}</span>
+              <span>{text('Updated', 'Aktualisiert')} {formatDateLocalized(item.updatedAt, true, language)}</span>
             </div>
             <div className="tag-list">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
           </div>
           <div className="item-actions">
-            {item.content.kind === 'presentation' && <Link to={`/present/${item.slug}`} className="button button-primary"><Play size={17} fill="currentColor" />Start presentation</Link>}
-            <button type="button" className="button button-secondary" onClick={copyLink}><Link2 size={17} />{copied ? 'Link copied' : 'Copy link'}</button>
-            <button type="button" className="button button-ghost" onClick={() => window.print()}><Printer size={17} />Print / save PDF</button>
+            {item.content.kind === 'presentation' && <Link to={`/present/${item.slug}`} className="button button-primary"><Play size={17} fill="currentColor" />{text('Start presentation', 'Präsentation starten')}</Link>}
+            <button type="button" className="button button-secondary" onClick={copyLink}><Link2 size={17} />{copied ? text('Link copied', 'Link kopiert') : text('Copy link', 'Link kopieren')}</button>
+            <button type="button" className="button button-ghost" onClick={() => window.print()}><Printer size={17} />{text('Print / save PDF', 'Drucken / als PDF speichern')}</button>
           </div>
         </div>
       </header>
@@ -69,18 +71,18 @@ export function ItemPage() {
               {item.content.slides.map((slide, index) => (
                 <Link key={slide.id} to={`/present/${item.slug}?slide=${index + 1}`} className="slide-index-card">
                   <span>{String(index + 1).padStart(2, '0')}</span>
-                  <div><strong>{slide.title}</strong><small>{slide.layout} layout</small></div>
+                  <div><strong>{slide.title}</strong><small>{slide.layout} {text('layout', 'Layout')}</small></div>
                   <ArrowRight size={16} />
                 </Link>
               ))}
             </div>
-            <Link to={`/present/${item.slug}`} className="button button-primary deck-start-mobile"><Play size={17} fill="currentColor" />Start presentation</Link>
+            <Link to={`/present/${item.slug}`} className="button button-primary deck-start-mobile"><Play size={17} fill="currentColor" />{text('Start presentation', 'Präsentation starten')}</Link>
           </section>
         )}
 
         {item.content.kind === 'note' && (
           <div className="reading-layout">
-            <aside className="reading-aside"><span>Study note</span><strong>{readingTime(item)}</strong><p>Use print to keep an offline copy or save this page as a PDF.</p></aside>
+            <aside className="reading-aside"><span>{text('Study note', 'Lernnotiz')}</span><strong>{readingTimeLocalized(item, language)}</strong><p>{text('Use print to keep an offline copy or save this page as a PDF.', 'Nutze Drucken, um eine Offline-Kopie oder ein PDF zu speichern.')}</p></aside>
             <div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content.body}</ReactMarkdown></div>
           </div>
         )}
@@ -89,9 +91,9 @@ export function ItemPage() {
           <div className="project-layout">
             <div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content.body}</ReactMarkdown></div>
             <aside className="project-aside">
-              <p className="eyebrow">Project goals</p>
+              <p className="eyebrow">{text('Project goals', 'Projektziele')}</p>
               <ul>{item.content.goals.map((goal) => <li key={goal}><CheckCircle2 size={18} />{goal}</li>)}</ul>
-              {item.content.outcome && <div className="outcome-box"><small>Outcome</small><p>{item.content.outcome}</p></div>}
+              {item.content.outcome && <div className="outcome-box"><small>{text('Outcome', 'Ergebnis')}</small><p>{item.content.outcome}</p></div>}
               {item.content.links?.map((link) => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label}<ArrowRight size={15} /></a>)}
             </aside>
           </div>
@@ -99,7 +101,7 @@ export function ItemPage() {
 
         {item.assets.length > 0 && (
           <section className="attachments-section">
-            <div className="section-heading"><div><p className="eyebrow">Resources</p><h2>Files and media</h2></div></div>
+            <div className="section-heading"><div><p className="eyebrow">{text('Resources', 'Materialien')}</p><h2>{text('Files and media', 'Dateien und Medien')}</h2></div></div>
             {previewAssets.length > 0 && (
               <div className="media-gallery">
                 {previewAssets.map((asset) => (
@@ -130,7 +132,7 @@ export function ItemPage() {
 
       {related.length > 0 && (
         <section className="related-section section-shell">
-          <div className="section-heading"><div><p className="eyebrow">Continue exploring</p><h2>Related work</h2></div></div>
+          <div className="section-heading"><div><p className="eyebrow">{text('Continue exploring', 'Weiter entdecken')}</p><h2>{text('Related work', 'Ähnliche Arbeiten')}</h2></div></div>
           <div className="content-grid related-grid">{related.map((candidate) => <ContentCard key={candidate.id} item={candidate} compact />)}</div>
         </section>
       )}

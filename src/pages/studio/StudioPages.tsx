@@ -16,6 +16,7 @@ import type {
   ContentItem, ItemContent, ItemStatus, ItemType, MediaAsset, PresentationSlide, SessionState,
   SiteSettings, SlideAnimation, SlideLayout, SlideTone,
 } from '../../types'
+import { useLanguage } from '../../lib/i18n'
 
 type GuardState = SessionState | null | undefined
 
@@ -28,6 +29,7 @@ export function useStudioSession(): GuardState {
 }
 
 export function StudioNav() {
+  const { text } = useLanguage()
   const navigate = useNavigate()
   async function logout() {
     await authApi.logout().catch(() => undefined)
@@ -35,12 +37,12 @@ export function StudioNav() {
   }
 
   return (
-    <nav className="studio-subnav" aria-label="Owner studio navigation">
-      <Link to="/studio"><LayoutDashboard size={17} />Dashboard</Link>
-      <Link to="/studio/planner"><CalendarDays size={17} />Planner</Link>
-      <Link to="/studio/study-hub"><BrainCircuit size={17} />Study hub</Link>
-      <Link to="/studio/settings"><Settings size={17} />Site settings</Link>
-      <button type="button" onClick={logout}><LogOut size={17} />Sign out</button>
+    <nav className="studio-subnav" aria-label={text('Owner studio navigation', 'Navigation des Owner-Studios')}>
+      <Link to="/studio"><LayoutDashboard size={17} />{text('Dashboard', 'Übersicht')}</Link>
+      <Link to="/studio/planner"><CalendarDays size={17} />{text('Planner', 'Planer')}</Link>
+      <Link to="/studio/study-hub"><BrainCircuit size={17} />{text('Study hub', 'Lernbereich')}</Link>
+      <Link to="/studio/settings"><Settings size={17} />{text('Site settings', 'Seiteneinstellungen')}</Link>
+      <button type="button" onClick={logout}><LogOut size={17} />{text('Sign out', 'Abmelden')}</button>
     </nav>
   )
 }

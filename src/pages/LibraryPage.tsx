@@ -4,17 +4,12 @@ import { useSearchParams } from 'react-router-dom'
 import { ContentCard } from '../components/ContentCard'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { getPublicItems } from '../lib/api'
-import { itemTypeLabel } from '../lib/format'
+import { itemTypeLabelLocalized } from '../lib/format'
+import { useLanguage } from '../lib/i18n'
 import type { ContentItem, ItemType } from '../types'
 
-const typeOptions: Array<{ value: ItemType | 'all'; label: string; icon: typeof BookOpen }> = [
-  { value: 'all', label: 'Everything', icon: BookOpen },
-  { value: 'presentation', label: 'Presentations', icon: Presentation },
-  { value: 'note', label: 'Notes', icon: FileText },
-  { value: 'project', label: 'Projects', icon: FolderKanban },
-]
-
 export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
+  const { language, text } = useLanguage()
   const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,10 +36,16 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
     return matchesType && matchesCategory && matchesSearch
   }), [activeType, category, items, query])
 
-  const title = fixedType ? itemTypeLabel(fixedType, true) : 'Learning library'
+  const typeOptions: Array<{ value: ItemType | 'all'; label: string; icon: typeof BookOpen }> = [
+    { value: 'all', label: text('Everything', 'Alles'), icon: BookOpen },
+    { value: 'presentation', label: text('Presentations', 'Präsentationen'), icon: Presentation },
+    { value: 'note', label: text('Notes', 'Notizen'), icon: FileText },
+    { value: 'project', label: text('Projects', 'Projekte'), icon: FolderKanban },
+  ]
+  const title = fixedType ? itemTypeLabelLocalized(fixedType, true, language) : text('Learning library', 'Lernbibliothek')
   const description = fixedType
-    ? `Browse every published ${itemTypeLabel(fixedType, true).toLowerCase()} in the studio.`
-    : 'Every published presentation, study note and project — organised and searchable.'
+    ? text(`Browse every published ${itemTypeLabelLocalized(fixedType, true, language).toLowerCase()} in the studio.`, `Alle veröffentlichten ${itemTypeLabelLocalized(fixedType, true, language)} aus dem Studio ansehen.`)
+    : text('Every published presentation, study note and project — organised and searchable.', 'Alle veröffentlichten Präsentationen, Lernnotizen und Projekte — organisiert und durchsuchbar.')
 
   function setParam(key: string, value?: string) {
     const next = new URLSearchParams(searchParams)
@@ -63,21 +64,21 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
   return (
     <div className="page-shell section-shell library-page">
       <header className="page-header">
-        <p className="eyebrow"><BookOpen size={15} />Explore the archive</p>
+        <p className="eyebrow"><BookOpen size={15} />{text('Explore the archive', 'Archiv entdecken')}</p>
         <h1>{title}</h1>
         <p>{description}</p>
       </header>
 
-      <section className="library-toolbar" aria-label="Library filters">
+      <section className="library-toolbar" aria-label={text('Library filters', 'Bibliotheksfilter')}>
         <label className="library-search">
           <Search size={19} aria-hidden="true" />
-          <span className="sr-only">Search</span>
-          <input value={query} onChange={(event) => updateSearch(event.target.value)} placeholder="Search by title, topic or tag…" />
-          {query && <button type="button" onClick={() => updateSearch('')} aria-label="Clear search"><X size={17} /></button>}
+          <span className="sr-only">{text('Search', 'Suchen')}</span>
+          <input value={query} onChange={(event) => updateSearch(event.target.value)} placeholder={text('Search by title, topic or tag…', 'Nach Titel, Thema oder Tag suchen…')} />
+          {query && <button type="button" onClick={() => updateSearch('')} aria-label={text('Clear search', 'Suche löschen')}><X size={17} /></button>}
         </label>
 
         {!fixedType && (
-          <div className="segmented-control" role="group" aria-label="Content type">
+          <div className="segmented-control" role="group" aria-label={text('Content type', 'Inhaltstyp')}>
             {typeOptions.map(({ value, label, icon: Icon }) => (
               <button
                 type="button"
@@ -92,8 +93,8 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
         )}
 
         {categories.length > 1 && (
-          <div className="category-row" aria-label="Categories">
-            <button type="button" className={category === 'all' ? 'is-active' : ''} onClick={() => setParam('category')}>All topics</button>
+          <div className="category-row" aria-label={text('Categories', 'Kategorien')}>
+            <button type="button" className={category === 'all' ? 'is-active' : ''} onClick={() => setParam('category')}>{text('All topics', 'Alle Themen')}</button>
             {categories.map((value) => (
               <button type="button" key={value} className={category === value ? 'is-active' : ''} onClick={() => setParam('category', value)}>{value}</button>
             ))}
@@ -102,16 +103,16 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
       </section>
 
       <div className="library-result-bar">
-        <p><strong>{visible.length}</strong> {visible.length === 1 ? 'result' : 'results'}</p>
+        <p><strong>{visible.length}</strong> {visible.length === 1 ? text('result', 'Ergebnis') : text('results', 'Ergebnisse')}</p>
         {(query || category !== 'all' || (!fixedType && activeType !== 'all')) && (
-          <button type="button" onClick={() => { setQuery(''); setSearchParams({}) }}>Reset filters</button>
+          <button type="button" onClick={() => { setQuery(''); setSearchParams({}) }}>{text('Reset filters', 'Filter zurücksetzen')}</button>
         )}
       </div>
 
-      {loading ? <LoadingState label="Opening the library…" /> : visible.length ? (
+      {loading ? <LoadingState label={text('Opening the library…', 'Bibliothek wird geöffnet…')} /> : visible.length ? (
         <div className="content-grid library-grid">{visible.map((item) => <ContentCard key={item.id} item={item} />)}</div>
       ) : (
-        <EmptyState title="Nothing found" message="Try a different word or reset the filters to see everything." />
+        <EmptyState title={text('Nothing found', 'Nichts gefunden')} message={text('Try a different word or reset the filters to see everything.', 'Probiere ein anderes Wort oder setze die Filter zurück.')} />
       )}
     </div>
   )

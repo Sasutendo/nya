@@ -4,10 +4,11 @@ import { Link } from 'react-router-dom'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { getPublicEvents } from '../lib/api'
 import type { CalendarEvent, CalendarEventCategory } from '../types'
+import { useLanguage, type Language } from '../lib/i18n'
 
-const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const categoryLabels: Record<CalendarEventCategory, string> = {
-  school: 'School', placement: 'Placement', assignment: 'Assignment', exam: 'Exam', milestone: 'Milestone', personal: 'Personal',
+const weekdays = { en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], de: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] }
+const categoryLabels: Record<CalendarEventCategory, [string, string]> = {
+  school: ['School', 'Schule'], placement: ['Placement', 'Praxiseinsatz'], assignment: ['Assignment', 'Aufgabe'], exam: ['Exam', 'Prüfung'], milestone: ['Milestone', 'Meilenstein'], personal: ['Personal', 'Persönlich'],
 }
 
 function isoDate(date: Date): string {
@@ -16,10 +17,11 @@ function isoDate(date: Date): string {
 
 function parseDate(value: string): Date { return new Date(`${value}T12:00:00`) }
 
-function formatEventDate(event: CalendarEvent): string {
-  const start = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).format(parseDate(event.date))
+function formatEventDate(event: CalendarEvent, language: Language): string {
+  const locale = language === 'de' ? 'de-DE' : 'en-GB'
+  const start = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(parseDate(event.date))
   if (!event.endDate || event.endDate === event.date) return start
-  return `${start} – ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(parseDate(event.endDate))}`
+  return `${start} – ${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(parseDate(event.endDate))}`
 }
 
 function eventOnDate(event: CalendarEvent, date: string): boolean {
@@ -48,6 +50,7 @@ function downloadIcs(events: CalendarEvent[]) {
 }
 
 export function CalendarPage() {
+  const { language, text } = useLanguage()
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,26 +80,26 @@ export function CalendarPage() {
     <div className="page-shell section-shell calendar-page">
       <header className="page-header calendar-header">
         <div>
-          <p className="eyebrow"><CalendarDays size={15} />Training calendar</p>
-          <h1>Dates worth remembering.</h1>
-          <p>Public milestones, school dates and important moments from the learning journey.</p>
+          <p className="eyebrow"><CalendarDays size={15} />{text('Training calendar', 'Ausbildungskalender')}</p>
+          <h1>{text('Dates worth remembering.', 'Termine, die wichtig sind.')}</h1>
+          <p>{text('Public milestones, school dates and important moments from the learning journey.', 'Öffentliche Meilensteine, Schultermine und wichtige Momente der Lernreise.')}</p>
         </div>
         <div className="calendar-header-actions">
-          <button type="button" className="button button-secondary" onClick={() => downloadIcs(events)} disabled={!events.length}><Download size={17} />Export calendar</button>
-          <button type="button" className="button button-ghost" onClick={() => window.print()}><Printer size={17} />Print</button>
+          <button type="button" className="button button-secondary" onClick={() => downloadIcs(events)} disabled={!events.length}><Download size={17} />{text('Export calendar', 'Kalender exportieren')}</button>
+          <button type="button" className="button button-ghost" onClick={() => window.print()}><Printer size={17} />{text('Print', 'Drucken')}</button>
         </div>
       </header>
 
-      {loading ? <LoadingState label="Opening the calendar…" /> : (
+      {loading ? <LoadingState label={text('Opening the calendar…', 'Kalender wird geöffnet…')} /> : (
         <div className="calendar-layout">
-          <section className="calendar-board" aria-label="Monthly calendar">
+          <section className="calendar-board" aria-label={text('Monthly calendar', 'Monatskalender')}>
             <div className="calendar-toolbar">
-              <button type="button" onClick={() => changeMonth(-1)} aria-label="Previous month"><ChevronLeft /></button>
-              <div><p>{month.getFullYear()}</p><h2>{new Intl.DateTimeFormat('en-GB', { month: 'long' }).format(month)}</h2></div>
-              <div className="calendar-toolbar-actions"><button type="button" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button><button type="button" onClick={() => changeMonth(1)} aria-label="Next month"><ChevronRight /></button></div>
+              <button type="button" onClick={() => changeMonth(-1)} aria-label={text('Previous month', 'Vorheriger Monat')}><ChevronLeft /></button>
+              <div><p>{month.getFullYear()}</p><h2>{new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-GB', { month: 'long' }).format(month)}</h2></div>
+              <div className="calendar-toolbar-actions"><button type="button" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>{text('Today', 'Heute')}</button><button type="button" onClick={() => changeMonth(1)} aria-label={text('Next month', 'Nächster Monat')}><ChevronRight /></button></div>
             </div>
             <div className="calendar-scroll">
-              <div className="calendar-grid weekday-grid">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
+              <div className="calendar-grid weekday-grid">{weekdays[language].map((day) => <span key={day}>{day}</span>)}</div>
               <div className="calendar-grid month-grid">
                 {days.map((date) => {
                   const dateValue = isoDate(date)
@@ -107,7 +110,7 @@ export function CalendarPage() {
                       <time dateTime={dateValue}>{date.getDate()}</time>
                       <div className="day-events">
                         {dayEvents.slice(0, 3).map((event) => <span key={event.id} className={`mini-event category-${event.category}`} title={event.title}>{event.time && <small>{event.time}</small>}{event.title}</span>)}
-                        {dayEvents.length > 3 && <small className="more-events">+{dayEvents.length - 3} more</small>}
+                        {dayEvents.length > 3 && <small className="more-events">+{dayEvents.length - 3} {text('more', 'weitere')}</small>}
                       </div>
                     </div>
                   )
@@ -117,14 +120,14 @@ export function CalendarPage() {
           </section>
 
           <aside className="agenda-panel">
-            <div className="agenda-heading"><div><p className="eyebrow"><Sparkles size={14} />Coming up</p><h2>Next on the journey</h2></div><span>{upcoming.length}</span></div>
+            <div className="agenda-heading"><div><p className="eyebrow"><Sparkles size={14} />{text('Coming up', 'Demnächst')}</p><h2>{text('Next on the journey', 'Als Nächstes auf der Reise')}</h2></div><span>{upcoming.length}</span></div>
             {upcoming.length ? <div className="agenda-list">{upcoming.map((event, index) => (
               <article key={event.id} className={`agenda-card category-${event.category}${index === 0 ? ' is-next' : ''}`}>
-                <div className="agenda-date"><strong>{parseDate(event.date).getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(parseDate(event.date))}</span></div>
-                <div><span className="agenda-category">{categoryLabels[event.category]}</span><h3>{event.title}</h3><p><CalendarDays size={13} />{formatEventDate(event)}{event.time ? ` · ${event.time}` : ''}</p>{event.description && <small>{event.description}</small>}{event.relatedItemSlug && <Link to={`/item/${event.relatedItemSlug}`}>Open related work <ArrowRight size={14} /></Link>}</div>
+                <div className="agenda-date"><strong>{parseDate(event.date).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-GB', { month: 'short' }).format(parseDate(event.date))}</span></div>
+                <div><span className="agenda-category">{categoryLabels[event.category][language === 'de' ? 1 : 0]}</span><h3>{event.title}</h3><p><CalendarDays size={13} />{formatEventDate(event, language)}{event.time ? ` · ${event.time}` : ''}</p>{event.description && <small>{event.description}</small>}{event.relatedItemSlug && <Link to={`/item/${event.relatedItemSlug}`}>{text('Open related work', 'Zugehörige Arbeit öffnen')} <ArrowRight size={14} /></Link>}</div>
               </article>
-            ))}</div> : <EmptyState title="A clear calendar" message="Public dates and milestones will appear here once they are added." />}
-            <div className="calendar-privacy-note"><MapPin size={16} /><p>Only events marked public are shown here. Personal deadlines can stay private in the owner planner.</p></div>
+            ))}</div> : <EmptyState title={text('A clear calendar', 'Ein freier Kalender')} message={text('Public dates and milestones will appear here once they are added.', 'Öffentliche Termine und Meilensteine erscheinen hier, sobald sie hinzugefügt wurden.')} />}
+            <div className="calendar-privacy-note"><MapPin size={16} /><p>{text('Only events marked public are shown here. Personal deadlines can stay private in the owner planner.', 'Hier werden nur öffentlich markierte Termine angezeigt. Persönliche Fristen bleiben privat im Owner-Planer.')}</p></div>
           </aside>
         </div>
       )}

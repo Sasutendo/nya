@@ -3,6 +3,8 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { DEFAULT_SETTINGS } from './lib/demo-data'
 import { getSettings, watchSettings } from './lib/api'
+import { unlockAchievement } from './lib/achievements'
+import { LanguageProvider } from './lib/i18n'
 import { HomePage } from './pages/HomePage'
 import { LibraryPage } from './pages/LibraryPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -71,9 +73,14 @@ export default function App() {
   }, [theme])
 
   const contextValue = useMemo(() => ({ settings, setSettings }), [settings])
-  const themeValue = useMemo(() => ({ theme, toggleTheme: () => setTheme((current) => current === 'light' ? 'dark' : 'light') }), [theme])
+  const themeValue = useMemo(() => ({ theme, toggleTheme: () => {
+    const next = theme === 'light' ? 'dark' : 'light'
+    setTheme(next)
+    if (next === 'dark') unlockAchievement('dark_dream')
+  } }), [theme])
 
   return (
+    <LanguageProvider>
     <ThemeContext.Provider value={themeValue}>
       <SiteContext.Provider value={contextValue}>
       <ScrollToTop />
@@ -101,5 +108,6 @@ export default function App() {
       </Suspense>
       </SiteContext.Provider>
     </ThemeContext.Provider>
+    </LanguageProvider>
   )
 }

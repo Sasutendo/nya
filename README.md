@@ -20,6 +20,10 @@ This project is designed to grow throughout my training. It gives finished schoo
 - A public calendar for milestones and selected training dates
 - A private planner with tasks, deadlines and colourful sticky notes
 - A private study hub with flashcards, a focus timer, nursing-skill tracking and daily reflections
+- German-first public interface with a saved German/English switch
+- Homepage focus, active-recall and private browser reflection tools
+- Visitor-local achievements with locked hints and secret unlocks
+- Route-specific cute details and different visual reactions for hidden easter eggs
 - Calendar printing and iCalendar export
 - An editable profile picture and a live owner clock
 - Automatic settings saving and live visitor synchronization
