@@ -28,7 +28,7 @@ function eventOnDate(event: CalendarEvent, date: string): boolean {
 
 function downloadIcs(events: CalendarEvent[]) {
   const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Nya Learning Studio//Calendar//EN', 'CALSCALE:GREGORIAN']
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Nya's Learning Atelier//Calendar//EN", "CALSCALE:GREGORIAN"]
   events.forEach((event) => {
     const start = event.date.replaceAll('-', '')
     const endDate = parseDate(event.endDate || event.date)

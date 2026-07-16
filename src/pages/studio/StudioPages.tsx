@@ -14,7 +14,7 @@ import { adminApi, authApi } from '../../lib/api'
 import { formatDate, itemTypeLabel, newId, normaliseTags, slugify } from '../../lib/format'
 import type {
   ContentItem, ItemContent, ItemStatus, ItemType, MediaAsset, PresentationSlide, SessionState,
-  SiteSettings, SlideLayout, SlideTone,
+  SiteSettings, SlideAnimation, SlideLayout, SlideTone,
 } from '../../types'
 
 type GuardState = SessionState | null | undefined
@@ -201,7 +201,7 @@ export function StudioPage() {
 function makeContent(type: ItemType): ItemContent {
   if (type === 'presentation') return {
     kind: 'presentation',
-    slides: [{ id: newId('slide'), layout: 'title', tone: 'sage', eyebrow: 'New presentation', title: 'Add your title', body: 'Add a clear opening sentence here.' }],
+    slides: [{ id: newId('slide'), layout: 'title', tone: 'sage', animation: 'rise', eyebrow: 'New presentation', title: 'Add your title', body: 'Add a clear opening sentence here.' }],
   }
   if (type === 'note') return { kind: 'note', body: '## First idea\n\nStart writing here…' }
   return { kind: 'project', body: '## About this project\n\nDescribe the process here…', goals: ['Add the first project goal'], outcome: '' }
@@ -382,6 +382,10 @@ function ProjectEditor({ item, update }: { item: ContentItem; update: (patch: Pa
 
 const layouts: SlideLayout[] = ['title', 'statement', 'split', 'list', 'quote', 'image']
 const tones: SlideTone[] = ['sage', 'ocean', 'clay', 'plum', 'paper']
+const animations: Array<{ value: SlideAnimation; label: string }> = [
+  { value: 'rise', label: 'Soft rise' }, { value: 'fade', label: 'Gentle fade' },
+  { value: 'pop', label: 'Playful pop' }, { value: 'drift', label: 'Side drift' }, { value: 'none', label: 'No animation' },
+]
 
 function SlideEditor({ item, update }: { item: ContentItem; update: (patch: Partial<ContentItem>) => void }) {
   const [selected, setSelected] = useState(0)
@@ -395,7 +399,7 @@ function SlideEditor({ item, update }: { item: ContentItem; update: (patch: Part
   }
 
   function addSlide() {
-    const next: PresentationSlide = { id: newId('slide'), layout: 'statement', tone: 'paper', eyebrow: '', title: 'New slide', body: '' }
+    const next: PresentationSlide = { id: newId('slide'), layout: 'statement', tone: 'paper', animation: 'rise', eyebrow: '', title: 'New slide', body: '' }
     update({ content: { ...content, slides: [...slides, next] } })
     setSelected(slides.length)
   }
@@ -443,6 +447,7 @@ function SlideEditor({ item, update }: { item: ContentItem; update: (patch: Part
         <div className="slide-fields form-grid">
           <label>Layout<select value={slide.layout} onChange={(event) => replaceSlide({ layout: event.target.value as SlideLayout })}>{layouts.map((layout) => <option key={layout} value={layout}>{layout[0].toUpperCase() + layout.slice(1)}</option>)}</select></label>
           <label>Colour mood<select value={slide.tone} onChange={(event) => replaceSlide({ tone: event.target.value as SlideTone })}>{tones.map((tone) => <option key={tone} value={tone}>{tone[0].toUpperCase() + tone.slice(1)}</option>)}</select></label>
+          <label className="span-2">Entrance animation<select value={slide.animation || 'rise'} onChange={(event) => replaceSlide({ animation: event.target.value as SlideAnimation })}>{animations.map((animation) => <option key={animation.value} value={animation.value}>{animation.label}</option>)}</select><small>Text, lists and media enter in a gentle sequence when this slide opens.</small></label>
           <label className="span-2">Small heading<input value={slide.eyebrow || ''} onChange={(event) => replaceSlide({ eyebrow: event.target.value })} placeholder="Optional context" /></label>
           <label className="span-2">Slide title<textarea rows={2} value={slide.title} onChange={(event) => replaceSlide({ title: event.target.value })} /></label>
           <label className="span-2">Body text<textarea rows={4} value={slide.body || ''} onChange={(event) => replaceSlide({ body: event.target.value })} /></label>
@@ -483,11 +488,16 @@ export function StudioSettingsPage() {
 
   return (
     <div className="settings-page page-shell section-shell">
-      <header className="studio-header"><div><Link to="/studio" className="back-link"><ArrowLeft size={16} />Back to studio</Link><p className="eyebrow"><Settings size={15} />Site settings</p><h1>Make the studio yours</h1><p>Update the words used across the home page and footer.</p></div><StudioNav /></header>
+      <header className="studio-header"><div><Link to="/studio" className="back-link"><ArrowLeft size={16} />Back to studio</Link><p className="eyebrow"><Settings size={15} />Site settings</p><h1>Make the atelier yours</h1><p>Update your public identity, profile picture and the words used across the site.</p></div><StudioNav /></header>
       <form className="editor-panel settings-form" onSubmit={save}>
+        <div className="profile-settings-card">
+          <div className="profile-settings-preview"><img src={draft.profileImage} alt={draft.profileImageAlt} /><span aria-hidden="true" /></div>
+          <div><p className="eyebrow">Profile picture</p><h2>Your public profile</h2><p>PNG, JPG, WebP and animated GIFs work here. The image appears beside your Berlin time and in the site header.</p><MediaUpload label="Choose profile picture" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" onUploaded={(asset) => field('profileImage', asset.url)} /></div>
+        </div>
         <div className="form-grid">
           <label>Site title<input value={draft.siteTitle} onChange={(event) => field('siteTitle', event.target.value)} /></label>
           <label>Your public name<input value={draft.ownerName} onChange={(event) => field('ownerName', event.target.value)} /></label>
+          <label className="span-2">Profile picture description<input value={draft.profileImageAlt} onChange={(event) => field('profileImageAlt', event.target.value)} placeholder="Describe your profile picture" /><small>This helps visitors using screen readers.</small></label>
           <label className="span-2">Small heading<input value={draft.eyebrow} onChange={(event) => field('eyebrow', event.target.value)} /></label>
           <label className="span-2">Main headline<input value={draft.tagline} onChange={(event) => field('tagline', event.target.value)} /></label>
           <label className="span-2">Introduction<textarea rows={5} value={draft.introduction} onChange={(event) => field('introduction', event.target.value)} /></label>

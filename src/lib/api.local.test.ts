@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { adminApi, authApi, getPublicEvents, getPublicItems, getSettings } from './api'
+import { adminApi, authApi, getPublicEvents, getPublicItems, getSettings, recordView } from './api'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -14,13 +14,14 @@ class MemoryStorage implements Storage {
 describe('zero-configuration local preview', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', new MemoryStorage())
+    vi.stubGlobal('sessionStorage', new MemoryStorage())
     vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Local preview must not call the API.') }))
   })
 
   it('loads public content, calendar and settings without an API request', async () => {
     expect((await getPublicItems()).length).toBeGreaterThan(0)
     expect((await getPublicEvents()).every((event) => event.visibility === 'public')).toBe(true)
-    expect((await getSettings()).siteTitle).toBe('Nya Learning Studio')
+    expect((await getSettings()).siteTitle).toBe("Nya's Learning Atelier")
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -46,4 +47,17 @@ describe('zero-configuration local preview', () => {
     expect(planner.tasks.length).toBeGreaterThan(0)
     expect(fetch).not.toHaveBeenCalled()
   })
+
+  it('counts one local view per item and browser session', async () => {
+    const before = (await getPublicItemForTest()).viewCount
+    expect(await recordView('welcome-to-my-learning-studio')).toBe(before + 1)
+    expect(await recordView('welcome-to-my-learning-studio')).toBe(before + 1)
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })
+
+async function getPublicItemForTest() {
+  const item = (await getPublicItems()).find((entry) => entry.slug === 'welcome-to-my-learning-studio')
+  if (!item) throw new Error('Starter presentation is missing.')
+  return item
+}

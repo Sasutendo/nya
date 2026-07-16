@@ -33,7 +33,7 @@ export function SlideCanvas({ slide, className, labelled = true }: { slide: Pres
 
   return (
     <section
-      className={classes('slide-canvas', `slide-${slide.layout}`, `tone-${slide.tone}`, className)}
+      className={classes('slide-canvas', `slide-${slide.layout}`, `tone-${slide.tone}`, `animation-${slide.animation || 'rise'}`, className)}
       aria-label={labelled ? `Slide: ${slide.title}` : undefined}
     >
       <span className="slide-shape shape-one" aria-hidden="true" />

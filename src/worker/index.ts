@@ -256,6 +256,7 @@ function validateItem(input: Record<string, unknown>): { item?: Record<string, u
       imageAlt: cleanText(slide.imageAlt, 300),
       caption: cleanText(slide.caption, 300),
       speakerNotes: cleanText(slide.speakerNotes, 5000),
+      animation: ['none', 'fade', 'rise', 'pop', 'drift'].includes(String(slide.animation)) ? slide.animation : 'rise',
       points: Array.isArray(slide.points) ? slide.points.map((point) => cleanText(point, 500)).filter(Boolean).slice(0, 30) : [],
     }))
   }
@@ -297,13 +298,24 @@ async function publicItems(request: Request, env: Env): Promise<Response> {
   return json({ items: (result.results || []).map((row) => mapItem(row, false, true)) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
 }
 
-async function publicItem(request: Request, slug: string, env: Env, context: ExecutionContext): Promise<Response> {
+async function publicItem(request: Request, slug: string, env: Env, _context: ExecutionContext): Promise<Response> {
   const row = await env.DB.prepare("SELECT * FROM content_items WHERE slug = ? AND status = 'published'").bind(slug).first<ItemRow>()
   if (!row) return error('This published item could not be found.', 404)
-  context.waitUntil(env.DB.prepare('UPDATE content_items SET view_count = view_count + 1 WHERE id = ?').bind(row.id).run())
-  row.view_count += 1
   const owner = Boolean(await verifySession(request, env))
   return json({ item: mapItem(row, owner) }, 200, { 'Cache-Control': owner ? 'private, no-store' : 'public, max-age=30, stale-while-revalidate=120' })
+}
+
+async function recordPublicView(request: Request, slug: string, env: Env): Promise<Response> {
+  if (!isSameOrigin(request)) return error('Cross-site requests are not allowed.', 403)
+  const body = await parseBody(request)
+  const viewId = cleanText(body?.viewId, 100)
+  if (!/^[a-zA-Z0-9_-]{16,100}$/.test(viewId)) return error('A valid view identifier is required.')
+  const item = await env.DB.prepare("SELECT id, view_count FROM content_items WHERE slug=? AND status='published'").bind(slug).first<{ id: string; view_count: number }>()
+  if (!item) return error('This published item could not be found.', 404)
+  const inserted = await env.DB.prepare('INSERT OR IGNORE INTO content_views (item_id,view_id) VALUES (?,?)').bind(item.id, viewId).run()
+  if (inserted.meta.changes) await env.DB.prepare('UPDATE content_items SET view_count=view_count+1 WHERE id=?').bind(item.id).run()
+  const current = await env.DB.prepare('SELECT view_count FROM content_items WHERE id=?').bind(item.id).first<{ view_count: number }>()
+  return json({ viewCount: current?.view_count ?? item.view_count })
 }
 
 async function publicCalendar(request: Request, env: Env): Promise<Response> {
@@ -533,6 +545,10 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   if (!path.startsWith('/api/')) return env.ASSETS.fetch(request)
   if (request.method === 'GET' && path === '/api/health') return json({ ok: true })
   if (request.method === 'GET' && path === '/api/public/items') return publicItems(request, env)
+  if (request.method === 'POST' && path.startsWith('/api/public/items/') && path.endsWith('/view')) {
+    const slug = decodeURIComponent(path.slice('/api/public/items/'.length, -'/view'.length))
+    return recordPublicView(request, slug, env)
+  }
   if (request.method === 'GET' && path.startsWith('/api/public/items/')) return publicItem(request, decodeURIComponent(path.slice('/api/public/items/'.length)), env, context)
   if (request.method === 'GET' && path === '/api/public/settings') {
     const row = await env.DB.prepare("SELECT value_json FROM site_settings WHERE key = 'site'").first<{ value_json: string }>()
@@ -566,6 +582,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
       if (!settings) return error('The settings are not valid JSON.')
       const safe = {
         siteTitle: cleanText(settings.siteTitle, 100), ownerName: cleanText(settings.ownerName, 100),
+        profileImage: safeMediaUrl(settings.profileImage) || '/images/yuuki-profile.png', profileImageAlt: cleanText(settings.profileImageAlt, 300),
         eyebrow: cleanText(settings.eyebrow, 160), tagline: cleanText(settings.tagline, 180),
         introduction: cleanText(settings.introduction, 700), trainingLabel: cleanText(settings.trainingLabel, 180),
         footerNote: cleanText(settings.footerNote, 180),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
+import { BerlinClock } from '../components/BerlinClock'
 import { ContentCard } from '../components/ContentCard'
 import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicEvents, getPublicItems } from '../lib/api'
@@ -47,6 +48,11 @@ export function HomePage() {
             />
             <button type="submit">Search</button>
           </form>
+          <div className="profile-presence">
+            <div className="profile-avatar-wrap"><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></div>
+            <div className="profile-presence-copy"><small>Currently learning with</small><strong>{settings.ownerName}</strong><span>Pflegefachkraft journey · Berlin</span></div>
+            <BerlinClock detailed />
+          </div>
           <div className="hero-note">
             <span className="status-dot" />
             <span>{settings.trainingLabel}</span>
@@ -63,6 +69,11 @@ export function HomePage() {
             <span>{previewDeck?.title}</span>
             {previewDeck && <Link to={`/present/${previewDeck.slug}`}>Open deck <ArrowRight size={15} /></Link>}
           </div>
+        </div>
+        <div className="hero-stickers" aria-hidden="true">
+          <span className="site-sticker sticker-heart">♡</span>
+          <span className="site-sticker sticker-study">study mode</span>
+          <span className="site-sticker sticker-spark">✦</span>
         </div>
       </section>
 

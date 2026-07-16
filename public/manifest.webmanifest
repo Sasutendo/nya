@@ -1,11 +1,11 @@
 {
-  "name": "Nya Learning Studio",
+  "name": "Nya's Learning Atelier",
   "short_name": "Nya",
   "description": "Presentations, study notes and projects from nursing training.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f1e8",
-  "theme_color": "#203c36",
+  "background_color": "#faeef2",
+  "theme_color": "#7b4d61",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]

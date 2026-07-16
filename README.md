@@ -1,6 +1,6 @@
-# Nya Learning Studio
+# Nya's Learning Atelier
 
-Nya Learning Studio is a personal learning portfolio for my nursing training.
+Nya's Learning Atelier is a personal learning portfolio for my nursing training.
 
 It brings presentations, study notes and practical projects together in one calm, organised space. Published work can be viewed publicly, while the private studio is reserved for creating and managing content.
 
@@ -12,6 +12,7 @@ This project is designed to grow throughout my training. It gives finished schoo
 
 - A searchable public learning library
 - Full-screen presentation viewing
+- Selectable, reduced-motion-friendly slide animations
 - Dedicated areas for presentations, notes and projects
 - Support for images, video, audio and downloadable resources
 - Responsive layouts for phones, tablets and computers
@@ -19,6 +20,8 @@ This project is designed to grow throughout my training. It gives finished schoo
 - A public calendar for milestones and selected training dates
 - A private planner with tasks, deadlines and colourful sticky notes
 - Calendar printing and iCalendar export
+- An editable profile picture and a live Berlin clock
+- Session-deduplicated public view counting
 - A private content studio for the owner
 - Draft and published content states
 - A calm, accessible and professional visual design

@@ -3,14 +3,16 @@ import type { ContentItem, SiteSettings } from '../types'
 const now = new Date().toISOString()
 
 export const DEFAULT_SETTINGS: SiteSettings = {
-  siteTitle: 'Nya Learning Studio',
+  siteTitle: "Nya's Learning Atelier",
   ownerName: 'Yuuki',
-  eyebrow: 'Nursing training · learning archive',
-  tagline: 'Learn with care. Share with clarity.',
+  profileImage: '/images/yuuki-profile.png',
+  profileImageAlt: 'Yuuki profile picture',
+  eyebrow: 'Nursing training · Berlin learning journal',
+  tagline: 'Carefully learning. Beautifully collected.',
   introduction:
     'A growing collection of presentations, study notes and practical projects from my journey to becoming a qualified nurse.',
   trainingLabel: 'General nursing training · Starting August',
-  footerNote: 'Built as a calm place for useful knowledge.',
+  footerNote: 'A soft, organised home for everything I learn.',
 }
 
 export const DEMO_ITEMS: ContentItem[] = [
@@ -18,7 +20,7 @@ export const DEMO_ITEMS: ContentItem[] = [
     id: 'demo_presentation',
     type: 'presentation',
     slug: 'welcome-to-my-learning-studio',
-    title: 'Welcome to my learning studio',
+    title: 'Welcome to my learning atelier',
     excerpt: 'A short tour of how presentations, notes and projects live together in this archive.',
     category: 'Orientation',
     tags: ['Welcome', 'Portfolio'],
@@ -32,9 +34,10 @@ export const DEMO_ITEMS: ContentItem[] = [
           id: 'slide_1',
           layout: 'title',
           tone: 'sage',
-          eyebrow: 'Nya Learning Studio',
+          eyebrow: "Nya's Learning Atelier",
           title: 'Learning, documented with care.',
           body: 'Presentations, notes and projects from my nursing training — organised in one calm, public archive.',
+          animation: 'rise',
         },
         {
           id: 'slide_2',
@@ -47,6 +50,7 @@ export const DEMO_ITEMS: ContentItem[] = [
             'Full-screen presentations for school and practice',
             'Projects that show the process as well as the result',
           ],
+          animation: 'pop',
         },
         {
           id: 'slide_3',
@@ -54,6 +58,7 @@ export const DEMO_ITEMS: ContentItem[] = [
           tone: 'clay',
           title: 'Knowledge becomes more useful when it is clear enough to share.',
           body: 'This studio will grow with every module, placement and new skill.',
+          animation: 'fade',
         },
         {
           id: 'slide_4',
@@ -62,6 +67,7 @@ export const DEMO_ITEMS: ContentItem[] = [
           eyebrow: 'The beginning',
           title: 'Training starts in August.',
           body: 'The archive starts now — ready for everything that comes next.',
+          animation: 'drift',
         },
       ],
     },

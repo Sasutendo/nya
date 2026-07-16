@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { ContentCard } from '../components/ContentCard'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { SlideCanvas } from '../components/SlideCanvas'
-import { getPublicItem, getPublicItems } from '../lib/api'
+import { getPublicItem, getPublicItems, recordView } from '../lib/api'
 import { formatDate, itemTypeLabel, readingTime } from '../lib/format'
 import type { ContentItem } from '../types'
 
@@ -19,7 +19,10 @@ export function ItemPage() {
   useEffect(() => {
     getPublicItem(slug).then((result) => {
       setItem(result)
-      if (result) getPublicItems({ type: result.type }).then((items) => setRelated(items.filter((candidate) => candidate.id !== result.id).slice(0, 2)))
+      if (result) {
+        recordView(slug).then((viewCount) => { if (viewCount !== null) setItem((current) => current ? { ...current, viewCount } : current) })
+        getPublicItems({ type: result.type }).then((items) => setRelated(items.filter((candidate) => candidate.id !== result.id).slice(0, 2)))
+      }
     })
   }, [slug])
 

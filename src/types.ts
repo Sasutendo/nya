@@ -2,6 +2,7 @@ export type ItemType = 'presentation' | 'note' | 'project'
 export type ItemStatus = 'draft' | 'published'
 export type SlideLayout = 'title' | 'statement' | 'split' | 'list' | 'quote' | 'image'
 export type SlideTone = 'sage' | 'ocean' | 'clay' | 'plum' | 'paper'
+export type SlideAnimation = 'none' | 'fade' | 'rise' | 'pop' | 'drift'
 export type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'file'
 export type CalendarEventCategory = 'school' | 'placement' | 'assignment' | 'exam' | 'milestone' | 'personal'
 export type EventVisibility = 'public' | 'private'
@@ -30,6 +31,7 @@ export interface PresentationSlide {
   videoUrl?: string
   caption?: string
   speakerNotes?: string
+  animation?: SlideAnimation
 }
 
 export interface PresentationContent {
@@ -81,6 +83,8 @@ export interface ContentItem {
 export interface SiteSettings {
   siteTitle: string
   ownerName: string
+  profileImage: string
+  profileImageAlt: string
   eyebrow: string
   tagline: string
   introduction: string

@@ -59,8 +59,12 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    document.title = settings.siteTitle
+  }, [settings.siteTitle])
+
+  useEffect(() => {
     document.documentElement.dataset.theme = theme
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#171d1a' : '#3b4f42')
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#21191e' : '#faeef2')
     try { localStorage.setItem('nya-theme', theme) } catch { /* The theme still works for this visit. */ }
   }, [theme])
 

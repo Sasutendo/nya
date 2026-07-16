@@ -10,6 +10,7 @@ const LOCAL_EMAIL_KEY = 'nya-local-owner-email-v1'
 const LOCAL_EVENTS_KEY = 'nya-local-calendar-v1'
 const LOCAL_NOTES_KEY = 'nya-local-stickies-v1'
 const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
+const LOCAL_VIEW_PREFIX = 'nya-local-viewed-v1:'
 const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true'
 
 class ApiError extends Error {
@@ -101,7 +102,10 @@ function writeLocalItems(items: ContentItem[]) {
 function readLocalSettings(): SiteSettings {
   try {
     const saved = localStorage.getItem(LOCAL_SETTINGS_KEY)
-    return saved ? JSON.parse(saved) as SiteSettings : DEFAULT_SETTINGS
+    if (!saved) return DEFAULT_SETTINGS
+    const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } as SiteSettings
+    if (parsed.siteTitle === 'Nya Learning Studio') parsed.siteTitle = DEFAULT_SETTINGS.siteTitle
+    return parsed
   } catch { return DEFAULT_SETTINGS }
 }
 
@@ -182,11 +186,43 @@ export async function getPublicItem(slug: string): Promise<ContentItem | null> {
   }
 }
 
+function viewIdFor(slug: string): string {
+  const key = `${LOCAL_VIEW_PREFIX}${slug}`
+  try {
+    const saved = sessionStorage.getItem(key)
+    if (saved) return saved
+    const created = crypto.randomUUID()
+    sessionStorage.setItem(key, created)
+    return created
+  } catch { return crypto.randomUUID() }
+}
+
+export async function recordView(slug: string): Promise<number | null> {
+  const viewId = viewIdFor(slug)
+  if (LOCAL_DEMO) {
+    const countedKey = `${LOCAL_VIEW_PREFIX}counted:${slug}`
+    const items = readLocalItems()
+    const current = items.find((item) => item.slug === slug && item.status === 'published')
+    if (!current) return null
+    try {
+      if (sessionStorage.getItem(countedKey)) return current.viewCount
+      sessionStorage.setItem(countedKey, viewId)
+    } catch { /* Count this visit when session storage is unavailable. */ }
+    const updated = { ...current, viewCount: current.viewCount + 1 }
+    writeLocalItems(items.map((item) => item.id === updated.id ? updated : item))
+    return updated.viewCount
+  }
+  try {
+    const result = await request<{ viewCount: number }>(`/api/public/items/${encodeURIComponent(slug)}/view`, { method: 'POST', body: JSON.stringify({ viewId }) })
+    return result.viewCount
+  } catch { return null }
+}
+
 export async function getSettings(): Promise<SiteSettings> {
   if (LOCAL_DEMO) return readLocalSettings()
   try {
     const result = await request<{ settings: SiteSettings }>('/api/public/settings')
-    return result.settings
+    return { ...DEFAULT_SETTINGS, ...result.settings }
   } catch {
     return DEFAULT_SETTINGS
   }

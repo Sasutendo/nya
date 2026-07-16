@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts (fingerprint, at
 
 INSERT OR IGNORE INTO site_settings (key, value_json) VALUES (
   'site',
-  '{"siteTitle":"Nya Learning Studio","ownerName":"Yuuki","eyebrow":"Nursing training · learning archive","tagline":"Learn with care. Share with clarity.","introduction":"A growing collection of presentations, study notes and practical projects from my journey to becoming a qualified nurse.","trainingLabel":"General nursing training · Starting August","footerNote":"Built as a calm place for useful knowledge."}'
+  '{"siteTitle":"Nya''s Learning Atelier","ownerName":"Yuuki","profileImage":"/images/yuuki-profile.png","profileImageAlt":"Yuuki profile picture","eyebrow":"Nursing training · Berlin learning journal","tagline":"Carefully learning. Beautifully collected.","introduction":"A growing collection of presentations, study notes and practical projects from my journey to becoming a qualified nurse.","trainingLabel":"General nursing training · Starting August","footerNote":"A soft, organised home for everything I learn."}'
 );
 
 INSERT OR IGNORE INTO content_items (
@@ -44,14 +44,14 @@ INSERT OR IGNORE INTO content_items (
   'starter_welcome',
   'presentation',
   'welcome-to-my-learning-studio',
-  'Welcome to my learning studio',
+  'Welcome to my learning atelier',
   'A short tour of how presentations, notes and projects live together in this archive.',
   'Orientation',
   '["Welcome","Portfolio"]',
   'published',
   1,
   '[]',
-  '{"kind":"presentation","slides":[{"id":"welcome_1","layout":"title","tone":"sage","eyebrow":"Nya Learning Studio","title":"Learning, documented with care.","body":"Presentations, notes and projects from my nursing training — organised in one calm, public archive.","speakerNotes":"Introduce the purpose of the learning portfolio."},{"id":"welcome_2","layout":"list","tone":"paper","eyebrow":"What you will find here","title":"One home for every kind of work","points":["Focused study notes for quick revision","Full-screen presentations for school and practice","Projects that show the process as well as the result"]},{"id":"welcome_3","layout":"quote","tone":"clay","title":"Knowledge becomes more useful when it is clear enough to share.","body":"This studio will grow with every module, placement and new skill."},{"id":"welcome_4","layout":"statement","tone":"ocean","eyebrow":"The beginning","title":"Training starts in August.","body":"The archive starts now — ready for everything that comes next."}]}',
+  '{"kind":"presentation","slides":[{"id":"welcome_1","layout":"title","tone":"sage","animation":"rise","eyebrow":"Nya''s Learning Atelier","title":"Learning, documented with care.","body":"Presentations, notes and projects from my nursing training — organised in one calm, public archive.","speakerNotes":"Introduce the purpose of the learning portfolio."},{"id":"welcome_2","layout":"list","tone":"paper","animation":"pop","eyebrow":"What you will find here","title":"One home for every kind of work","points":["Focused study notes for quick revision","Full-screen presentations for school and practice","Projects that show the process as well as the result"]},{"id":"welcome_3","layout":"quote","tone":"clay","animation":"fade","title":"Knowledge becomes more useful when it is clear enough to share.","body":"This atelier will grow with every module, placement and new skill."},{"id":"welcome_4","layout":"statement","tone":"ocean","animation":"drift","eyebrow":"The beginning","title":"Training starts in August.","body":"The archive starts now — ready for everything that comes next."}]}',
   CURRENT_TIMESTAMP
 );
 

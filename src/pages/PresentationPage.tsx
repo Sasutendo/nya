@@ -3,7 +3,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Expand, FileText, Minimize, Print
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { SlideCanvas } from '../components/SlideCanvas'
-import { getPublicItem } from '../lib/api'
+import { getPublicItem, recordView } from '../lib/api'
 import type { ContentItem } from '../types'
 
 export function PresentationPage() {
@@ -16,7 +16,12 @@ export function PresentationPage() {
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
   const touchStart = useRef<number | null>(null)
 
-  useEffect(() => { getPublicItem(slug).then(setItem) }, [slug])
+  useEffect(() => {
+    getPublicItem(slug).then((result) => {
+      setItem(result)
+      if (result) recordView(slug).then((viewCount) => { if (viewCount !== null) setItem((current) => current ? { ...current, viewCount } : current) })
+    })
+  }, [slug])
 
   const slides = item?.content.kind === 'presentation' ? item.content.slides : []
   const go = useCallback((next: number) => {

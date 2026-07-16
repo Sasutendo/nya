@@ -1,4 +1,4 @@
-import { ArrowUpRight, FileText, FolderKanban, Presentation } from 'lucide-react'
+import { ArrowUpRight, Eye, FileText, FolderKanban, Presentation } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDate, itemTypeLabel, readingTime } from '../lib/format'
 import type { ContentItem } from '../types'
@@ -36,6 +36,7 @@ export function ContentCard({ item, compact = false }: { item: ContentItem; comp
           {!compact && <p>{item.excerpt}</p>}
           <div className="card-footer">
             <time dateTime={item.publishedAt || item.updatedAt}>{formatDate(item.publishedAt || item.updatedAt)}</time>
+            <span className="card-views"><Eye size={13} />{item.viewCount.toLocaleString('en-GB')}</span>
             <span className="read-link">View <ArrowUpRight size={15} aria-hidden="true" /></span>
           </div>
         </div>
