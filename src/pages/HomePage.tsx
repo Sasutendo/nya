@@ -5,7 +5,7 @@ import { useSite } from '../App'
 import { OwnerClock } from '../components/OwnerClock'
 import { AchievementsSection } from '../components/AchievementsSection'
 import { ContentCard } from '../components/ContentCard'
-import { HomeStudyCorner } from '../components/HomeStudyCorner'
+import { StudyJourneySection } from '../components/StudyJourneySection'
 import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicEvents, getPublicItems } from '../lib/api'
 import { notesForCycle } from '../lib/cute-notes'
@@ -39,7 +39,7 @@ export function HomePage() {
   const upcoming = events.filter((event) => (event.endDate || event.date) >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
   const cuteNotes = useMemo(() => notesForCycle(noteCycle), [noteCycle])
   const displayEyebrow = localizeAuthoredDefault(settings.eyebrow, 'Nursing training · personal learning journal', 'Pflegeausbildung · persönliches Lernjournal', language)
-  const displayTagline = localizeAuthoredDefault(settings.tagline, 'Carefully learning. Beautifully collected.', 'Sorgfältig lernen. Schön gesammelt.', language)
+  const displayTagline = localizeAuthoredDefault(settings.tagline, 'Carefully learning. Beautifully collected.', 'Mit Sorgfalt gelernt. Schön festgehalten.', language)
   const displayIntroduction = localizeAuthoredDefault(settings.introduction, 'A growing collection of presentations, study notes and practical projects from my journey to becoming a qualified nurse.', 'Eine wachsende Sammlung aus Präsentationen, Lernnotizen und Praxisprojekten auf meinem Weg zur Pflegefachkraft.', language)
   const displayTraining = localizeAuthoredDefault(settings.trainingLabel, 'General nursing training · Starting August', 'Generalistische Pflegeausbildung · Start im August', language)
 
@@ -68,7 +68,7 @@ export function HomePage() {
           </form>
           <div className="profile-presence">
             <div className="profile-avatar-wrap"><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></div>
-            <div className="profile-presence-copy"><small>{text('Currently learning with', 'Hier lernt')}</small><strong>{settings.ownerName}</strong><span>{text('Nursing training journey in progress', 'Pflegeausbildung läuft')}</span></div>
+            <div className="profile-presence-copy"><small>{text('Currently learning with', 'Lernportfolio von')}</small><strong>{settings.ownerName}</strong><span>{text('Nursing training journey in progress', 'Auf dem Weg zur Pflegefachfrau')}</span></div>
             <OwnerClock detailed />
           </div>
           <div className="hero-note">
@@ -92,14 +92,14 @@ export function HomePage() {
           <span className="site-sticker sticker-heart">♡</span>
           <span className="site-sticker sticker-study">{text('study mode', 'lernmodus')}</span>
           <span className="site-sticker sticker-spark">✦</span>
-          <span className="site-sticker sticker-care">{text('tiny wins club', 'kleine-erfolge-club')}</span>
+          <span className="site-sticker sticker-care">{text('tiny wins club', 'club der kleinen erfolge')}</span>
           <span className="site-sticker sticker-cross">+</span>
           <span className="site-sticker sticker-cat">ฅ^•ﻌ•^ฅ</span>
           <span className="site-sticker sticker-combo">100× combo</span>
         </div>
       </section>
 
-      <HomeStudyCorner />
+      <StudyJourneySection items={items} />
 
       <section className="quick-links section-shell" aria-label={text('Browse by content type', 'Nach Inhaltstyp durchsuchen')}>
         <Link to="/presentations" className="quick-link quick-presentation">

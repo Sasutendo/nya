@@ -7,7 +7,7 @@ import { Navigate } from 'react-router-dom'
 import { EmptyState, ErrorNotice, LoadingState } from '../../components/Feedback'
 import { adminApi } from '../../lib/api'
 import { newId } from '../../lib/format'
-import { unlockAchievement } from '../../lib/achievements'
+import { showEasterEgg, unlockAchievement } from '../../lib/achievements'
 import type { NursingSkill, NursingSkillStatus, StudyCard, StudyHubData, StudyReflection } from '../../types'
 import { StudioNav, useStudioSession } from './StudioPages'
 
@@ -73,7 +73,7 @@ export function StudyHubPage() {
     unlockAchievement('focus_round')
     setTimerMessage(timerMode === 'reset' ? 'Soft reset complete — welcome back ♡' : 'Focus round complete — tiny win collected ✦')
     setSeconds(timerMinutes * 60)
-    window.dispatchEvent(new CustomEvent('nya:surprise', { detail: 'care' }))
+    showEasterEgg('care')
   }, [seconds, timerMinutes, timerMode])
 
   const currentCard = data.cards.length ? data.cards[cardIndex % data.cards.length] : undefined

@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom'
-import { unlockAchievement } from '../lib/achievements'
+import { showEasterEgg, unlockAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
 function routeMessage(path: string): { en: string; de: string; doodle: string } {
@@ -19,7 +19,7 @@ export function CutePageDecor() {
 
   function findCat() {
     unlockAchievement('study_cat')
-    window.dispatchEvent(new CustomEvent('nya:surprise', { detail: 'cat' }))
+    showEasterEgg('cat')
   }
 
   return <div className="cute-page-decor" aria-label={text('Decorative corner details', 'Dekorative Details der Ecke')}>

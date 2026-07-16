@@ -6,6 +6,7 @@ import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicItem, recordView } from '../lib/api'
 import type { ContentItem } from '../types'
 import { useLanguage } from '../lib/i18n'
+import { unlockAchievement } from '../lib/achievements'
 
 export function PresentationPage() {
   const { text } = useLanguage()
@@ -53,6 +54,10 @@ export function PresentationPage() {
     document.addEventListener('fullscreenchange', onFullscreen)
     return () => document.removeEventListener('fullscreenchange', onFullscreen)
   }, [])
+
+  useEffect(() => {
+    if (slides.length && index === slides.length - 1) unlockAchievement('focus_round')
+  }, [index, slides.length])
 
   async function toggleFullscreen() {
     if (document.fullscreenElement) await document.exitFullscreen()

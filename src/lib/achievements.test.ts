@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { achievementForEgg, getUnlockedAchievements, unlockAchievement } from './achievements'
+import { achievementForEgg, getUnlockedAchievements, showEasterEgg, unlockAchievement, unlockEggAchievement } from './achievements'
 import { localizeAuthoredDefault } from './i18n'
 
 class MemoryStorage {
@@ -23,6 +23,17 @@ describe('visitor achievements and language defaults', () => {
   it('maps personal easter eggs to achievements', () => {
     expect(achievementForEgg('osu')).toBe('rhythm_combo')
     expect(achievementForEgg('coffee')).toBe('coffee_break')
+  })
+
+  it('does not award achievements when an effect is only being shown', () => {
+    showEasterEgg('osu')
+    expect(getUnlockedAchievements()).toEqual([])
+  })
+
+  it('awards a discovered egg once even when it is triggered repeatedly', () => {
+    expect(unlockEggAchievement('osu')).toBe(true)
+    expect(unlockEggAchievement('osu')).toBe(false)
+    expect(getUnlockedAchievements()).toEqual(['rhythm_combo'])
   })
 
   it('localizes only untouched default copy', () => {

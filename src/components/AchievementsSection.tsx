@@ -20,7 +20,7 @@ export function AchievementsSection() {
   return (
     <section className="achievements-section section-shell">
       <div className="section-heading achievement-heading">
-        <div><p className="eyebrow"><Trophy size={15} />{text('Secret collection', 'Geheime Sammlung')}</p><h2>{text('Corner achievements', 'Erfolge dieser Ecke')}</h2><p>{text('Every visitor has their own collection in this browser. The hints are intentionally a little mysterious.', 'Jede Person hat in diesem Browser eine eigene Sammlung. Die Hinweise sind absichtlich etwas geheimnisvoll.')}</p></div>
+        <div><p className="eyebrow"><Trophy size={15} />{text('Secret collection', 'Geheime Sammlung')}</p><h2>{text('Corner achievements', 'Erfolge in der Lernecke')}</h2><p>{text('Every visitor has their own collection in this browser. The hints are intentionally a little mysterious.', 'Die Sammlung wird nur in deinem Browser gespeichert. Die Hinweise verraten absichtlich nicht sofort alles.')}</p></div>
         <div className="achievement-progress"><span><strong>{unlocked.length}</strong> / {ACHIEVEMENTS.length} {text('found', 'gefunden')}</span><div><i style={{ width: `${progress}%` }} /></div></div>
       </div>
       <div className="achievement-grid">
@@ -28,7 +28,7 @@ export function AchievementsSection() {
           const found = unlockedSet.has(achievement.id)
           return <article key={achievement.id} className={found ? 'is-unlocked' : 'is-locked'}>
             <span>{found ? achievement.icon : <LockKeyhole size={17} />}</span>
-            <div><small>{found ? text('Achievement found', 'Erfolg gefunden') : text('Still hidden', 'Noch versteckt')}</small><strong>{found ? (language === 'de' ? achievement.titleDe : achievement.title) : text('Locked achievement', 'Gesperrter Erfolg')}</strong><p>{found ? text('This secret now belongs in your collection ♡', 'Dieses Geheimnis gehört jetzt zu deiner Sammlung ♡') : (language === 'de' ? achievement.hintDe : achievement.hint)}</p></div>
+            <div><small>{found ? text('Achievement found', 'Erfolg gefunden') : text('Still hidden', 'Noch versteckt')}</small><strong>{found ? (language === 'de' ? achievement.titleDe : achievement.title) : text('Locked achievement', 'Noch gesperrt')}</strong><p>{found ? text('This secret now belongs in your collection ♡', 'Dieses Geheimnis gehört jetzt zu deiner Sammlung ♡') : (language === 'de' ? achievement.hintDe : achievement.hint)}</p></div>
             {found && <Sparkles size={15} />}
           </article>
         })}

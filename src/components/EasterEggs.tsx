@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { achievementForEgg, unlockAchievement } from '../lib/achievements'
+import { unlockAchievement, unlockEggAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
 type EggKind = 'nya' | 'osu' | 'code' | 'care' | 'sasu' | 'cat' | 'coffee' | 'princess' | 'eepy' | 'anime' | 'yuuki'
 
 const eggs: Record<EggKind, { icon: string; label: string; labelDe: string; messages: string[]; messagesDe: string[]; particles: string[] }> = {
   nya: { icon: '♡', label: 'Secret corner note', labelDe: 'Geheime Eckennotiz', messages: ['Tiny win unlocked — keep going, Yuuki ♡', 'Nya says: one small step still counts. ✦'], messagesDe: ['Kleinen Erfolg freigeschaltet — weiter so, Yuuki ♡', 'Nya sagt: Auch ein kleiner Schritt zählt. ✦'], particles: ['♡', '✦', '+'] },
-  osu: { icon: '○', label: 'Hidden combo', labelDe: 'Versteckte Combo', messages: ['100× study combo — accuracy looking adorable.', 'No miss: one more flashcard cleared ✦'], messagesDe: ['100× Lerncombo — die Genauigkeit sieht süß aus.', 'Kein Fehler: Noch eine Karteikarte geschafft ✦'], particles: ['○', '◌', '✦'] },
-  code: { icon: '</>', label: 'Coder brain online', labelDe: 'Coder-Gehirn online', messages: ['Care heart + coder brain = powerful troubleshooting.', 'Tiny bug fixed. Tiny concept learned. Same satisfying feeling.'], messagesDe: ['Pflegeherz + Coder-Gehirn = starke Problemlösung.', 'Kleinen Bug behoben. Kleines Thema gelernt. Gleich gutes Gefühl.'], particles: ['{ }', '✦', '01'] },
+  osu: { icon: '○', label: 'Hidden combo', labelDe: 'Versteckte Combo', messages: ['100× study combo — accuracy looking adorable.', 'No miss: one more flashcard cleared ✦'], messagesDe: ['100× Lern-Combo — sauber gespielt.', 'Kein Miss: Noch eine Karteikarte geschafft ✦'], particles: ['○', '◌', '✦'] },
+  code: { icon: '</>', label: 'Coder brain online', labelDe: 'Coding-Modus an', messages: ['Care heart + coder brain = powerful troubleshooting.', 'Tiny bug fixed. Tiny concept learned. Same satisfying feeling.'], messagesDe: ['Pflegeherz + Coding-Hirn = ziemlich starke Problemlösung.', 'Kleiner Bug gefixt, kleines Thema verstanden. Beides fühlt sich gut an.'], particles: ['{ }', '✦', '01'] },
   care: { icon: '+', label: 'Nursing buff', labelDe: 'Pflege-Buff', messages: ['Gentle hands, sharp mind, kind heart.', 'Rest is part of the care plan too — especially yours.'], messagesDe: ['Sanfte Hände, klarer Kopf, gutes Herz.', 'Ruhe gehört auch in den Pflegeplan — besonders in deinen.'], particles: ['+', '♡', '✦'] },
   sasu: { icon: '☾', label: 'Dark-fantasy study spell', labelDe: 'Dark-Fantasy-Lernzauber', messages: ['Focus spell cast: +10 calm, +10 curiosity.', 'Sasu found a moonlit shortcut back to the notes.'], messagesDe: ['Fokuszauber gewirkt: +10 Ruhe, +10 Neugier.', 'Sasu fand einen Weg im Mondlicht zurück zu den Notizen.'], particles: ['☾', '✧', '✦'] },
   cat: { icon: 'ฅ', label: 'Study cat discovered', labelDe: 'Lernkatze entdeckt', messages: ['The study cat inspected the notes. They are officially cozy.', 'Curiosity is a clinical skill. The cat agrees.'], messagesDe: ['Die Lernkatze hat die Notizen geprüft. Sie sind offiziell gemütlich.', 'Neugier ist eine Pflegekompetenz. Die Katze stimmt zu.'], particles: ['ฅ', '♡', '✦'] },
@@ -29,10 +29,9 @@ export function EasterEggs({ ownerName }: { ownerName: string }) {
     let sequence: string[] = []
     const classic = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a']
     const reveal = (event?: Event) => {
-      const requested = event instanceof CustomEvent ? event.detail : undefined
+      const detail = event instanceof CustomEvent ? event.detail as unknown : undefined
+      const requested = typeof detail === 'string' ? detail : detail && typeof detail === 'object' && 'kind' in detail ? (detail as { kind?: unknown }).kind : undefined
       const kind = triggers.includes(requested as EggKind) ? requested as EggKind : 'nya'
-      const achievement = achievementForEgg(kind)
-      if (achievement) unlockAchievement(achievement)
       setSurprise({ key: Date.now(), kind })
     }
     const onKey = (event: KeyboardEvent) => {
@@ -49,8 +48,7 @@ export function EasterEggs({ ownerName }: { ownerName: string }) {
       const match = triggers.find((trigger) => typed.endsWith(trigger))
       if (match) {
         typed = ''
-        const achievement = achievementForEgg(match)
-        if (achievement) unlockAchievement(achievement)
+        unlockEggAchievement(match)
         setSurprise({ key: Date.now(), kind: match })
       }
     }

@@ -209,7 +209,11 @@ html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolu
 .preview-window-bar > span { width: 7px; height: 7px; border-radius: 50%; background: #c3bdb2; }
 .preview-window-bar > span:first-child { background: var(--clay); }
 .preview-window-bar small { margin-left: auto; color: var(--ink-soft); font-size: .65rem; font-weight: 700; }
-.hero-preview .slide-canvas { border-radius: 0; }
+.hero-preview .slide-canvas { border-radius: 0; padding: clamp(28px, 4vw, 52px); }
+.hero-preview .slide-canvas h2,
+.hero-preview .slide-title h2 { font-size: clamp(1.8rem, 3.25vw, 3.15rem); line-height: 1.04; }
+.hero-preview .slide-body { max-width: 88%; margin-top: 1em; font-size: clamp(.72rem, 1.08vw, 1.02rem); line-height: 1.48; }
+.hero-preview .slide-eyebrow { font-size: clamp(.5rem, .72vw, .68rem); }
 .preview-window-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 52px; padding: 10px 16px; background: #fbf8f1; }
 .preview-window-footer > span { overflow: hidden; color: var(--ink-soft); font-size: .72rem; white-space: nowrap; text-overflow: ellipsis; }
 .preview-window-footer a { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: .72rem; font-weight: 750; }
@@ -835,34 +839,43 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .reflection-list p strong { color: var(--ink); font-size: .57rem; text-transform: uppercase; }
 .study-safety-note { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 17px 0 0; color: var(--ink-soft); font-size: .61rem; text-align: center; }
 
-/* Public study tools and achievements */
-.home-study-corner { padding-block: 76px 84px; }
-.home-study-corner .section-heading > div > p:last-child, .achievement-heading > div > p:last-child { max-width: 670px; margin: 10px 0 0; color: var(--ink-soft); font-size: .76rem; line-height: 1.6; }
-.home-study-grid { display: grid; grid-template-columns: .82fr .82fr 1.36fr; align-items: stretch; gap: 13px; }
-.home-study-grid > article { position: relative; overflow: hidden; min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 19px; background: rgba(255,249,251,.74); box-shadow: var(--shadow-sm); }
-.home-tool-title { display: flex; align-items: center; gap: 10px; margin-bottom: 17px; }
-.home-tool-title > span { display: grid; place-items: center; width: 39px; aspect-ratio: 1; border-radius: 12px; color: #fff; background: var(--sage-dark); }
-.home-tool-title > div { display: grid; gap: 3px; }
-.home-tool-title small { color: var(--ink-soft); font-size: .54rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
-.home-tool-title strong { font-family: Georgia, serif; font-size: 1.16rem; font-weight: 500; }
-.home-timer-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.home-timer-modes button { min-height: 33px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-soft); background: transparent; font-size: .58rem; font-weight: 800; cursor: pointer; }
-.home-timer-modes button.is-active { color: #fff; border-color: transparent; background: var(--sage-dark); }
-.home-clock { display: block; margin: 24px 0 9px; font-family: Georgia, serif; font-size: clamp(2.8rem, 5vw, 4rem); line-height: 1; letter-spacing: -.04em; text-align: center; font-variant-numeric: tabular-nums; }
-.home-clock.is-running { color: var(--sage-dark); animation: focus-pulse 2s ease-in-out infinite; }
-.home-focus-card > p { min-height: 33px; margin: 0 0 15px; color: var(--ink-soft); font-size: .62rem; line-height: 1.5; text-align: center; }
-.home-focus-card > div:last-child { display: flex; justify-content: center; gap: 6px; }
-.home-prompt-card { color: #5c3546; background: linear-gradient(145deg, #f5cad9, #efd9e8) !important; }
-.home-prompt-card .home-tool-title > span { background: #b96688; }
-.home-prompt-card blockquote { min-height: 125px; margin: 21px 0 18px; font-family: Georgia, serif; font-size: 1.2rem; line-height: 1.45; }
-.home-prompt-card > button { display: inline-flex; align-items: center; gap: 6px; border: 0; color: #78465d; background: transparent; font-size: .65rem; font-weight: 850; cursor: pointer; }
-.home-prompt-card > i { position: absolute; color: rgba(155,80,116,.22); font-style: normal; font-size: 2.4rem; }
-.home-prompt-card > i:nth-last-child(2) { top: 9px; right: 13px; }
-.home-prompt-card > i:last-child { right: 24px; bottom: -9px; transform: rotate(12deg); }
-.home-reflection-card form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.home-reflection-card label { display: grid; gap: 6px; color: var(--ink); font-size: .62rem; font-weight: 750; }
-.home-reflection-card label input { min-height: 42px; }
-.home-reflection-card form button { grid-column: 1 / -1; justify-self: start; margin-top: 4px; }
+/* Published study journey and achievements */
+.study-journey-section { padding-block: 76px 84px; }
+.journey-heading > div > p:last-child, .achievement-heading > div > p:last-child { max-width: 690px; margin: 10px 0 0; color: var(--ink-soft); font-size: .76rem; line-height: 1.6; }
+.journey-stats { display: grid; grid-template-columns: repeat(4, 1fr); overflow: hidden; margin-bottom: 13px; border: 1px solid var(--line); border-radius: 17px; background: rgba(255,249,251,.72); box-shadow: var(--shadow-sm); }
+.journey-stats > div { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 8px; padding: 15px 17px; border-right: 1px solid var(--line); }
+.journey-stats > div:last-child { border: 0; }
+.journey-stats svg { color: var(--sage); }
+.journey-stats strong { font-family: Georgia, serif; font-size: 1.5rem; font-weight: 500; }
+.journey-stats span { color: var(--ink-soft); font-size: .6rem; }
+.journey-grid { display: grid; grid-template-columns: 1.25fr .9fr; gap: 13px; }
+.journey-grid > article { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 19px; background: rgba(255,249,251,.72); box-shadow: var(--shadow-sm); }
+.journey-latest { grid-row: span 2; }
+.journey-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.journey-card-heading > div { display: grid; gap: 3px; }
+.journey-card-heading small { color: var(--sage-dark); font-size: .53rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.journey-card-heading h3 { margin: 0; font-family: Georgia, serif; font-size: 1.35rem; font-weight: 500; }
+.journey-card-heading > a { display: inline-flex; align-items: center; gap: 5px; color: var(--sage-dark); font-size: .62rem; font-weight: 800; }
+.journey-card-heading > span { color: #bd6f91; font-size: 1.25rem; }
+.journey-entry-list { display: grid; gap: 7px; }
+.journey-entry-list > a { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.28); transition: transform .2s ease, background .2s ease; }
+.journey-entry-list > a:hover { transform: translateX(2px); background: rgba(255,255,255,.5); }
+.journey-entry-list > a > span { display: grid; place-items: center; width: 37px; aspect-ratio: 1; border-radius: 10px; color: var(--sage-dark); background: var(--sage-light); }
+.journey-entry-list > a > div { display: grid; min-width: 0; gap: 3px; }
+.journey-entry-list small { color: var(--ink-soft); font-size: .53rem; }
+.journey-entry-list strong { overflow: hidden; font-size: .71rem; white-space: nowrap; text-overflow: ellipsis; }
+.journey-entry-list p { overflow: hidden; margin: 0; color: var(--ink-soft); font-size: .58rem; white-space: nowrap; text-overflow: ellipsis; }
+.journey-reflections { background: linear-gradient(145deg, rgba(247,205,220,.76), rgba(239,221,239,.7)) !important; }
+.journey-reflections > div:last-child { display: grid; gap: 7px; }
+.journey-reflections a { display: block; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.28); }
+.journey-reflections blockquote { display: -webkit-box; overflow: hidden; margin: 0 0 7px; font-family: Georgia, serif; font-size: .8rem; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.journey-reflections a > span { display: flex; align-items: center; gap: 5px; color: var(--sage-dark); font-size: .55rem; font-weight: 800; }
+.journey-topics > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; }
+.topic-chip { display: inline-flex; padding: 7px 9px; border-radius: 999px; color: #71465a; background: #f4d7e2; font-size: .58rem; font-weight: 750; }
+.topic-chip.chip-1 { background: #eee2f3; }
+.topic-chip.chip-2 { color: #4b665e; background: #dfece7; }
+.topic-chip.chip-3 { color: #765143; background: #f1dfd6; }
+.journey-empty { margin: 0; color: var(--ink-soft); font-size: .66rem; line-height: 1.5; }
 .achievements-section { padding-block: 84px 95px; }
 .achievement-heading { align-items: end; }
 .achievement-progress { flex: 0 0 210px; }
@@ -1024,10 +1037,16 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 :root[data-theme="dark"] .language-toggle,
 :root[data-theme="dark"] .corner-cat,
 :root[data-theme="dark"] .page-ribbon { color: var(--ink-soft); border-color: var(--line); background: rgba(54,38,47,.9); }
-:root[data-theme="dark"] .home-study-grid > article,
+:root[data-theme="dark"] .journey-stats,
+:root[data-theme="dark"] .journey-grid > article,
 :root[data-theme="dark"] .achievement-grid article { background: rgba(45,32,40,.84); }
-:root[data-theme="dark"] .home-prompt-card { color: #f3dfe8; background: linear-gradient(145deg, #61394b, #493346) !important; }
-:root[data-theme="dark"] .home-prompt-card > button { color: #e9b7cb; }
+:root[data-theme="dark"] .journey-entry-list > a,
+:root[data-theme="dark"] .journey-reflections a { background: rgba(255,255,255,.035); }
+:root[data-theme="dark"] .journey-reflections { color: #f3dfe8; background: linear-gradient(145deg, #61394b, #493346) !important; }
+:root[data-theme="dark"] .topic-chip { color: #f2dce5; background: #5f3a49; }
+:root[data-theme="dark"] .topic-chip.chip-1 { background: #51405e; }
+:root[data-theme="dark"] .topic-chip.chip-2 { color: #dcece5; background: #365247; }
+:root[data-theme="dark"] .topic-chip.chip-3 { color: #f0ded5; background: #5c4137; }
 :root[data-theme="dark"] .achievement-grid article.is-unlocked { border-color: rgba(238,161,193,.2); background: linear-gradient(120deg, rgba(103,58,77,.72), rgba(69,52,80,.72)); }
 
 @media (max-width: 1050px) {
@@ -1050,8 +1069,9 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
   .agenda-panel { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }
   .agenda-heading, .calendar-privacy-note { grid-column: 1; }
   .agenda-list { grid-column: 2; grid-row: 1 / span 3; }
-  .home-study-grid { grid-template-columns: 1fr 1fr; }
-  .home-reflection-card { grid-column: 1 / -1; }
+  .journey-stats { grid-template-columns: repeat(2, 1fr); }
+  .journey-stats > div:nth-child(2) { border-right: 0; }
+  .journey-stats > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
 }
 
 @media (max-width: 820px) {
@@ -1096,8 +1116,8 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
   .agenda-list { margin-bottom: 16px; }
   .page-ribbon, .page-doodle { display: none; }
   .language-toggle span { display: none; }
-  .home-study-grid { grid-template-columns: 1fr; }
-  .home-reflection-card { grid-column: auto; }
+  .journey-grid { grid-template-columns: 1fr; }
+  .journey-latest { grid-row: auto; }
   .achievement-grid { grid-template-columns: 1fr; }
 }
 
@@ -1130,10 +1150,11 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
   .desk-section { padding-bottom: 72px; }
   .home-sticky-wall { grid-template-columns: 1fr; padding: 28px 24px; }
   .sticky-wall-toolbar { grid-column: auto; }
-  .home-study-corner { padding-block: 55px 65px; }
-  .home-study-grid > article { padding: 17px 14px; }
-  .home-reflection-card form { grid-template-columns: 1fr; }
-  .home-reflection-card form button { grid-column: auto; width: 100%; }
+  .study-journey-section { padding-block: 55px 65px; }
+  .journey-stats { grid-template-columns: 1fr 1fr; }
+  .journey-stats > div { grid-template-columns: auto auto; padding: 12px; }
+  .journey-stats span { grid-column: 1 / -1; }
+  .journey-grid > article { padding: 17px 14px; }
   .achievement-heading { align-items: stretch; }
   .achievement-progress { flex-basis: auto; width: 100%; }
   .achievement-progress > span { text-align: left; }

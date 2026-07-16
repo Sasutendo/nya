@@ -6,7 +6,7 @@ import { classes } from '../lib/format'
 import { EasterEggs } from './EasterEggs'
 import { CutePageDecor } from './CutePageDecor'
 import { OwnerClock } from './OwnerClock'
-import { unlockAchievement } from '../lib/achievements'
+import { showEasterEgg, unlockAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
 const footerEggs = ['nya', 'osu', 'code', 'care', 'sasu', 'cat', 'coffee'] as const
@@ -14,7 +14,7 @@ const footerEggs = ['nya', 'osu', 'code', 'care', 'sasu', 'cat', 'coffee'] as co
 function openRandomEasterEgg() {
   unlockAchievement('secret_button')
   const kind = footerEggs[Math.floor(Math.random() * footerEggs.length)]
-  window.dispatchEvent(new CustomEvent('nya:surprise', { detail: kind }))
+  showEasterEgg(kind)
 }
 
 export function AppLayout() {
