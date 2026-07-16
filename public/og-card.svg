@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f5f1e8"/>
+  <circle cx="1030" cy="110" r="220" fill="#dce7df"/>
+  <circle cx="1120" cy="580" r="300" fill="#ead7ce"/>
+  <rect x="90" y="80" width="74" height="74" rx="21" fill="#203c36"/>
+  <path d="M111 134v-34h9l22 19v-19h9v34h-9l-22-19v19z" fill="#f5f1e8"/>
+  <text x="90" y="260" fill="#17312c" font-family="system-ui, sans-serif" font-size="76" font-weight="700">Nya Learning Studio</text>
+  <text x="94" y="335" fill="#5f6f69" font-family="system-ui, sans-serif" font-size="34">Learn with care. Share with clarity.</text>
+  <rect x="94" y="410" width="340" height="6" rx="3" fill="#db856c"/>
+</svg>

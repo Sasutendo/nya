@@ -1,0 +1,40 @@
+{
+  "name": "nya-lernstudio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false",
+    "cf:dev": "wrangler dev",
+    "db:migrate:local": "wrangler d1 migrations apply nya-lernstudio-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply nya-lernstudio-db --remote",
+    "deploy": "npm run build && wrangler deploy",
+    "password:hash": "node scripts/hash-password.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.24.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.1",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260715.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.111.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
