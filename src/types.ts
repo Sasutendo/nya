@@ -3,6 +3,10 @@ export type ItemStatus = 'draft' | 'published'
 export type SlideLayout = 'title' | 'statement' | 'split' | 'list' | 'quote' | 'image'
 export type SlideTone = 'sage' | 'ocean' | 'clay' | 'plum' | 'paper'
 export type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'file'
+export type CalendarEventCategory = 'school' | 'placement' | 'assignment' | 'exam' | 'milestone' | 'personal'
+export type EventVisibility = 'public' | 'private'
+export type StickyNoteColour = 'pink' | 'peach' | 'yellow' | 'sage' | 'lilac'
+export type TaskPriority = 'low' | 'normal' | 'high'
 
 export interface MediaAsset {
   id: string
@@ -98,4 +102,42 @@ export interface SessionState {
   authenticated: boolean
   email?: string
   setupRequired?: boolean
+}
+
+export interface CalendarEvent {
+  id: string
+  title: string
+  description: string
+  date: string
+  endDate?: string
+  time?: string
+  category: CalendarEventCategory
+  visibility: EventVisibility
+  relatedItemSlug?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StickyNote {
+  id: string
+  text: string
+  colour: StickyNoteColour
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PlannerTask {
+  id: string
+  title: string
+  dueDate?: string
+  priority: TaskPriority
+  completed: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PlannerData {
+  events: CalendarEvent[]
+  notes: StickyNote[]
+  tasks: PlannerTask[]
 }

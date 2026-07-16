@@ -1,11 +1,15 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
-import type { ContentItem, ItemFilters, MediaAsset, SessionState, SiteSettings } from '../types'
+import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
+import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
 const LOCAL_SETTINGS_KEY = 'nya-local-settings-v1'
 const LOCAL_SESSION_KEY = 'nya-local-owner-session-v1'
 const LOCAL_PASSWORD_KEY = 'nya-local-owner-password-v1'
 const LOCAL_EMAIL_KEY = 'nya-local-owner-email-v1'
+const LOCAL_EVENTS_KEY = 'nya-local-calendar-v1'
+const LOCAL_NOTES_KEY = 'nya-local-stickies-v1'
+const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
 const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true'
 
 class ApiError extends Error {
@@ -101,6 +105,25 @@ function readLocalSettings(): SiteSettings {
   } catch { return DEFAULT_SETTINGS }
 }
 
+function readLocalCollection<T>(key: string, starter: T[]): T[] {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) return JSON.parse(saved) as T[]
+  } catch { /* Restore the safe starter data below. */ }
+  const initial = structuredClone(starter)
+  localStorage.setItem(key, JSON.stringify(initial))
+  return initial
+}
+
+function writeLocalCollection<T>(key: string, values: T[]) {
+  try { localStorage.setItem(key, JSON.stringify(values)) }
+  catch { throw new ApiError('Local browser storage is full. Remove a large test upload or older planner entry.', 507) }
+}
+
+const readLocalEvents = () => readLocalCollection(LOCAL_EVENTS_KEY, DEMO_CALENDAR_EVENTS)
+const readLocalNotes = () => readLocalCollection(LOCAL_NOTES_KEY, DEMO_STICKY_NOTES)
+const readLocalTasks = () => readLocalCollection(LOCAL_TASKS_KEY, DEMO_TASKS)
+
 function localFileAsset(file: File): Promise<MediaAsset> {
   if (file.size > 2.5 * 1024 * 1024) {
     throw new ApiError('Local preview uploads can be up to 2.5 MB. The configured production site supports files up to 100 MB.', 413)
@@ -167,6 +190,19 @@ export async function getSettings(): Promise<SiteSettings> {
   } catch {
     return DEFAULT_SETTINGS
   }
+}
+
+export async function getPublicEvents(from?: string, to?: string): Promise<CalendarEvent[]> {
+  if (LOCAL_DEMO) {
+    return readLocalEvents().filter((event) => event.visibility === 'public' && (!from || event.date >= from) && (!to || event.date <= to))
+  }
+  const params = new URLSearchParams()
+  if (from) params.set('from', from)
+  if (to) params.set('to', to)
+  try {
+    const result = await request<{ events: CalendarEvent[] }>(`/api/public/calendar?${params}`)
+    return result.events
+  } catch { return [] }
 }
 
 export const authApi = {
@@ -244,6 +280,52 @@ export const adminApi = {
       return { settings }
     }
     return request<{ settings: SiteSettings }>('/api/admin/settings', { method: 'PUT', body: JSON.stringify(settings) })
+  },
+  planner: async (): Promise<PlannerData> => {
+    if (LOCAL_DEMO) return { events: readLocalEvents(), notes: readLocalNotes(), tasks: readLocalTasks() }
+    return request<PlannerData>('/api/admin/planner')
+  },
+  saveEvent: async (event: CalendarEvent, create = false): Promise<{ event: CalendarEvent }> => {
+    if (LOCAL_DEMO) {
+      const events = readLocalEvents()
+      const exists = events.some((candidate) => candidate.id === event.id)
+      const saved = { ...event, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_EVENTS_KEY, exists ? events.map((candidate) => candidate.id === event.id ? saved : candidate) : [...events, saved])
+      return { event: saved }
+    }
+    return request<{ event: CalendarEvent }>(`/api/admin/calendar${create ? '' : `/${event.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(event) })
+  },
+  removeEvent: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_EVENTS_KEY, readLocalEvents().filter((event) => event.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/calendar/${id}`, { method: 'DELETE' })
+  },
+  saveSticky: async (note: StickyNote, create = false): Promise<{ note: StickyNote }> => {
+    if (LOCAL_DEMO) {
+      const notes = readLocalNotes()
+      const exists = notes.some((candidate) => candidate.id === note.id)
+      const saved = { ...note, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_NOTES_KEY, exists ? notes.map((candidate) => candidate.id === note.id ? saved : candidate) : [saved, ...notes])
+      return { note: saved }
+    }
+    return request<{ note: StickyNote }>(`/api/admin/sticky-notes${create ? '' : `/${note.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(note) })
+  },
+  removeSticky: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_NOTES_KEY, readLocalNotes().filter((note) => note.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/sticky-notes/${id}`, { method: 'DELETE' })
+  },
+  saveTask: async (task: PlannerTask, create = false): Promise<{ task: PlannerTask }> => {
+    if (LOCAL_DEMO) {
+      const tasks = readLocalTasks()
+      const exists = tasks.some((candidate) => candidate.id === task.id)
+      const saved = { ...task, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_TASKS_KEY, exists ? tasks.map((candidate) => candidate.id === task.id ? saved : candidate) : [saved, ...tasks])
+      return { task: saved }
+    }
+    return request<{ task: PlannerTask }>(`/api/admin/tasks${create ? '' : `/${task.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(task) })
+  },
+  removeTask: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_TASKS_KEY, readLocalTasks().filter((task) => task.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/tasks/${id}`, { method: 'DELETE' })
   },
   upload: async (file: File): Promise<{ asset: MediaAsset }> => {
     if (LOCAL_DEMO) return { asset: await localFileAsset(file) }

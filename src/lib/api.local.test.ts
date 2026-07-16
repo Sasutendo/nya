@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { authApi, getPublicItems, getSettings } from './api'
+import { adminApi, authApi, getPublicEvents, getPublicItems, getSettings } from './api'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -17,8 +17,9 @@ describe('zero-configuration local preview', () => {
     vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Local preview must not call the API.') }))
   })
 
-  it('loads public content and settings without an API request', async () => {
+  it('loads public content, calendar and settings without an API request', async () => {
     expect((await getPublicItems()).length).toBeGreaterThan(0)
+    expect((await getPublicEvents()).every((event) => event.visibility === 'public')).toBe(true)
     expect((await getSettings()).siteTitle).toBe('Nya Learning Studio')
     expect(fetch).not.toHaveBeenCalled()
   })
@@ -34,6 +35,15 @@ describe('zero-configuration local preview', () => {
 
     expect(session.authenticated).toBe(true)
     expect(localStorage.getItem('nya-local-owner-password-v1')).not.toContain('a-cozy-private-passphrase')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('keeps private planner data entirely in the browser during local testing', async () => {
+    const planner = await adminApi.planner()
+
+    expect(planner.events.some((event) => event.visibility === 'private')).toBe(true)
+    expect(planner.notes.length).toBeGreaterThan(0)
+    expect(planner.tasks.length).toBeGreaterThan(0)
     expect(fetch).not.toHaveBeenCalled()
   })
 })

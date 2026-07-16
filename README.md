@@ -16,6 +16,9 @@ This project is designed to grow throughout my training. It gives finished schoo
 - Support for images, video, audio and downloadable resources
 - Responsive layouts for phones, tablets and computers
 - Cozy light and dark themes with a saved personal preference
+- A public calendar for milestones and selected training dates
+- A private planner with tasks, deadlines and colourful sticky notes
+- Calendar printing and iCalendar export
 - A private content studio for the owner
 - Draft and published content states
 - A calm, accessible and professional visual design

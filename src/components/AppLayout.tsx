@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, FileText, FolderKanban, LockKeyhole, Menu, Moon, Presentation, Sun, X } from 'lucide-react'
+import { BookOpen, CalendarDays, FileText, FolderKanban, LockKeyhole, Menu, Moon, Presentation, Sun, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
 import { classes } from '../lib/format'
@@ -9,6 +9,7 @@ const navigation = [
   { to: '/presentations', label: 'Presentations', icon: Presentation },
   { to: '/notes', label: 'Notes', icon: FileText },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
 ]
 
 export function AppLayout() {

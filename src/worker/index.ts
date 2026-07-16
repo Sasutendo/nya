@@ -35,6 +35,38 @@ interface MediaAsset {
   size: number
 }
 
+interface CalendarRow {
+  id: string
+  title: string
+  description: string
+  event_date: string
+  end_date: string | null
+  event_time: string | null
+  category: 'school' | 'placement' | 'assignment' | 'exam' | 'milestone' | 'personal'
+  visibility: 'public' | 'private'
+  related_item_slug: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface StickyRow {
+  id: string
+  note_text: string
+  colour: 'pink' | 'peach' | 'yellow' | 'sage' | 'lilac'
+  created_at: string
+  updated_at: string
+}
+
+interface TaskRow {
+  id: string
+  title: string
+  due_date: string | null
+  priority: 'low' | 'normal' | 'high'
+  completed: number
+  created_at: string
+  updated_at: string
+}
+
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 const SESSION_SECONDS = 7 * 24 * 60 * 60
 const encoder = new TextEncoder()
@@ -89,6 +121,23 @@ function mapItem(row: ItemRow, includePrivate = false, summary = false) {
     updatedAt: row.updated_at,
     publishedAt: row.published_at || undefined,
   }
+}
+
+function mapCalendarEvent(row: CalendarRow) {
+  return {
+    id: row.id, title: row.title, description: row.description, date: row.event_date,
+    endDate: row.end_date || undefined, time: row.event_time || undefined,
+    category: row.category, visibility: row.visibility, relatedItemSlug: row.related_item_slug || undefined,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  }
+}
+
+function mapSticky(row: StickyRow) {
+  return { id: row.id, text: row.note_text, colour: row.colour, createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+function mapTask(row: TaskRow) {
+  return { id: row.id, title: row.title, dueDate: row.due_date || undefined, priority: row.priority, completed: Boolean(row.completed), createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -257,6 +306,104 @@ async function publicItem(request: Request, slug: string, env: Env, context: Exe
   return json({ item: mapItem(row, owner) }, 200, { 'Cache-Control': owner ? 'private, no-store' : 'public, max-age=30, stale-while-revalidate=120' })
 }
 
+async function publicCalendar(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const from = cleanText(url.searchParams.get('from'), 10)
+  const to = cleanText(url.searchParams.get('to'), 10)
+  const conditions = ["visibility = 'public'"]
+  const values: string[] = []
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) { conditions.push('event_date >= ?'); values.push(from) }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) { conditions.push('event_date <= ?'); values.push(to) }
+  const result = await env.DB.prepare(`SELECT * FROM calendar_events WHERE ${conditions.join(' AND ')} ORDER BY event_date, COALESCE(event_time, '23:59')`).bind(...values).all<CalendarRow>()
+  return json({ events: (result.results || []).map(mapCalendarEvent) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
+}
+
+function validDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) }
+
+async function adminPlanner(env: Env): Promise<Response> {
+  const [events, notes, tasks] = await Promise.all([
+    env.DB.prepare('SELECT * FROM calendar_events ORDER BY event_date, COALESCE(event_time, \'23:59\')').all<CalendarRow>(),
+    env.DB.prepare('SELECT * FROM planner_sticky_notes ORDER BY updated_at DESC').all<StickyRow>(),
+    env.DB.prepare('SELECT * FROM planner_tasks ORDER BY completed, CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, updated_at DESC').all<TaskRow>(),
+  ])
+  return json({
+    events: (events.results || []).map(mapCalendarEvent),
+    notes: (notes.results || []).map(mapSticky),
+    tasks: (tasks.results || []).map(mapTask),
+  })
+}
+
+async function saveCalendarEvent(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The calendar event is not valid JSON.')
+  const title = cleanText(body.title, 180)
+  const description = cleanText(body.description, 1000)
+  const date = cleanText(body.date, 10)
+  const endDate = cleanText(body.endDate, 10)
+  const time = cleanText(body.time, 5)
+  const category = cleanText(body.category, 30)
+  const visibility = cleanText(body.visibility, 10)
+  if (!title) return error('Add an event title.')
+  if (!validDate(date) || (endDate && !validDate(endDate))) return error('Choose a valid event date.')
+  if (time && !/^\d{2}:\d{2}$/.test(time)) return error('Choose a valid event time.')
+  if (!['school', 'placement', 'assignment', 'exam', 'milestone', 'personal'].includes(category)) return error('Choose a valid event category.')
+  if (!['public', 'private'].includes(visibility)) return error('Choose public or private visibility.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE calendar_events SET title=?,description=?,event_date=?,end_date=?,event_time=?,category=?,visibility=?,related_item_slug=?,updated_at=? WHERE id=?').bind(
+      title, description, date, endDate || null, time || null, category, visibility, cleanText(body.relatedItemSlug, 100) || null, now, id,
+    ).run()
+    if (!result.meta.changes) return error('This calendar event could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO calendar_events (id,title,description,event_date,end_date,event_time,category,visibility,related_item_slug,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(
+      id, title, description, date, endDate || null, time || null, category, visibility, cleanText(body.relatedItemSlug, 100) || null, now, now,
+    ).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM calendar_events WHERE id=?').bind(id).first<CalendarRow>()
+  return json({ event: mapCalendarEvent(row!) }, existingId ? 200 : 201)
+}
+
+async function saveSticky(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The sticky note is not valid JSON.')
+  const noteText = cleanText(body.text, 800)
+  const colour = cleanText(body.colour, 20)
+  if (!noteText) return error('Write something on the sticky note.')
+  if (!['pink', 'peach', 'yellow', 'sage', 'lilac'].includes(colour)) return error('Choose a valid sticky note colour.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE planner_sticky_notes SET note_text=?,colour=?,updated_at=? WHERE id=?').bind(noteText, colour, now, id).run()
+    if (!result.meta.changes) return error('This sticky note could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO planner_sticky_notes (id,note_text,colour,created_at,updated_at) VALUES (?,?,?,?,?)').bind(id, noteText, colour, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM planner_sticky_notes WHERE id=?').bind(id).first<StickyRow>()
+  return json({ note: mapSticky(row!) }, existingId ? 200 : 201)
+}
+
+async function saveTask(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The task is not valid JSON.')
+  const title = cleanText(body.title, 240)
+  const dueDate = cleanText(body.dueDate, 10)
+  const priority = cleanText(body.priority, 20)
+  if (!title) return error('Add a task title.')
+  if (dueDate && !validDate(dueDate)) return error('Choose a valid due date.')
+  if (!['low', 'normal', 'high'].includes(priority)) return error('Choose a valid priority.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE planner_tasks SET title=?,due_date=?,priority=?,completed=?,updated_at=? WHERE id=?').bind(title, dueDate || null, priority, body.completed ? 1 : 0, now, id).run()
+    if (!result.meta.changes) return error('This task could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO planner_tasks (id,title,due_date,priority,completed,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').bind(id, title, dueDate || null, priority, body.completed ? 1 : 0, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM planner_tasks WHERE id=?').bind(id).first<TaskRow>()
+  return json({ task: mapTask(row!) }, existingId ? 200 : 201)
+}
+
 async function login(request: Request, env: Env): Promise<Response> {
   if (!isSameOrigin(request)) return error('Cross-site requests are not allowed.', 403)
   const key = await fingerprint(request)
@@ -391,6 +538,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     const row = await env.DB.prepare("SELECT value_json FROM site_settings WHERE key = 'site'").first<{ value_json: string }>()
     return json({ settings: parseJson(row?.value_json || '{}', {}) }, 200, { 'Cache-Control': 'public, max-age=60' })
   }
+  if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
   if (request.method === 'GET' && path.startsWith('/api/media/')) return serveMedia(request, decodeURIComponent(path.slice('/api/media/'.length)), env)
   if (request.method === 'POST' && path === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && path === '/api/auth/logout') return json({ ok: true }, 200, { 'Set-Cookie': 'nya_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' })
@@ -403,6 +551,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     const admin = await requireAdmin(request, env)
     if (admin instanceof Response) return admin
     if (request.method === 'GET' && path === '/api/admin/items') return listAdminItems(env)
+    if (request.method === 'GET' && path === '/api/admin/planner') return adminPlanner(env)
     if (request.method === 'POST' && path === '/api/admin/items') return saveItem(request, env)
     if (path.startsWith('/api/admin/items/')) {
       const id = decodeURIComponent(path.slice('/api/admin/items/'.length))
@@ -423,6 +572,33 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
       }
       await env.DB.prepare("INSERT INTO site_settings (key,value_json,updated_at) VALUES ('site',?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at").bind(JSON.stringify(safe), new Date().toISOString()).run()
       return json({ settings: safe })
+    }
+    if (request.method === 'POST' && path === '/api/admin/calendar') return saveCalendarEvent(request, env)
+    if (path.startsWith('/api/admin/calendar/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/calendar/'.length))
+      if (request.method === 'PUT') return saveCalendarEvent(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM calendar_events WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This calendar event could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/sticky-notes') return saveSticky(request, env)
+    if (path.startsWith('/api/admin/sticky-notes/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/sticky-notes/'.length))
+      if (request.method === 'PUT') return saveSticky(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM planner_sticky_notes WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This sticky note could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/tasks') return saveTask(request, env)
+    if (path.startsWith('/api/admin/tasks/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/tasks/'.length))
+      if (request.method === 'PUT') return saveTask(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM planner_tasks WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This task could not be found.', 404)
+      }
     }
     if (request.method === 'POST' && path === '/api/admin/upload') return uploadMedia(request, env)
   }

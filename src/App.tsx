@@ -10,10 +10,12 @@ import type { SiteSettings } from './types'
 
 const ItemPage = lazy(() => import('./pages/ItemPage').then((module) => ({ default: module.ItemPage })))
 const PresentationPage = lazy(() => import('./pages/PresentationPage').then((module) => ({ default: module.PresentationPage })))
+const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
 const StudioPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioPage })))
 const StudioEditorPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioEditorPage })))
 const StudioLoginPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioLoginPage })))
 const StudioSettingsPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioSettingsPage })))
+const PlannerPage = lazy(() => import('./pages/studio/PlannerPage').then((module) => ({ default: module.PlannerPage })))
 
 interface SiteContextValue {
   settings: SiteSettings
@@ -77,12 +79,14 @@ export default function App() {
           <Route path="presentations" element={<LibraryPage fixedType="presentation" />} />
           <Route path="notes" element={<LibraryPage fixedType="note" />} />
           <Route path="projects" element={<LibraryPage fixedType="project" />} />
+          <Route path="calendar" element={<CalendarPage />} />
           <Route path="item/:slug" element={<ItemPage />} />
           <Route path="studio/login" element={<StudioLoginPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/new/:type" element={<StudioEditorPage />} />
           <Route path="studio/edit/:id" element={<StudioEditorPage />} />
           <Route path="studio/settings" element={<StudioSettingsPage />} />
+          <Route path="studio/planner" element={<PlannerPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route path="present/:slug" element={<PresentationPage />} />

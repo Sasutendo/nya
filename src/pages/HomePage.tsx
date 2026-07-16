@@ -1,25 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, BookOpen, FileText, FolderKanban, Presentation, Search, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
 import { ContentCard } from '../components/ContentCard'
 import { SlideCanvas } from '../components/SlideCanvas'
-import { getPublicItems } from '../lib/api'
-import type { ContentItem } from '../types'
+import { getPublicEvents, getPublicItems } from '../lib/api'
+import type { CalendarEvent, ContentItem } from '../types'
 
 export function HomePage() {
   const { settings } = useSite()
   const [items, setItems] = useState<ContentItem[]>([])
+  const [events, setEvents] = useState<CalendarEvent[]>([])
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
-    getPublicItems().then(setItems)
+    Promise.all([getPublicItems(), getPublicEvents()]).then(([content, calendar]) => { setItems(content); setEvents(calendar) })
   }, [])
 
   const featured = useMemo(() => items.filter((item) => item.featured).slice(0, 3), [items])
   const previewDeck = items.find((item) => item.content.kind === 'presentation')
   const firstSlide = previewDeck?.content.kind === 'presentation' ? previewDeck.content.slides[0] : undefined
+  const today = new Date().toISOString().slice(0, 10)
+  const upcoming = events.filter((event) => (event.endDate || event.date) >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault()
@@ -79,6 +82,32 @@ export function HomePage() {
           <div><strong>Projects</strong><small>Process, results and reflection</small></div>
           <ArrowRight size={18} />
         </Link>
+        <Link to="/calendar" className="quick-link quick-calendar">
+          <span><CalendarDays size={21} /></span>
+          <div><strong>Calendar</strong><small>Milestones and upcoming dates</small></div>
+          <ArrowRight size={18} />
+        </Link>
+      </section>
+
+      <section className="desk-section section-shell">
+        <div className="section-heading desk-heading">
+          <div><p className="eyebrow"><Heart size={15} />On the study desk</p><h2>Plans, progress and little reminders</h2></div>
+          <Link to="/calendar" className="text-link">Open calendar <ArrowRight size={16} /></Link>
+        </div>
+        <div className="desk-grid">
+          <div className="home-agenda">
+            <div className="home-agenda-title"><span><CalendarDays size={19} /></span><div><strong>Coming up</strong><small>Public milestones and important dates</small></div></div>
+            {upcoming.length ? <div>{upcoming.map((event) => {
+              const date = new Date(`${event.date}T12:00:00`)
+              return <Link to="/calendar" key={event.id} className={`home-agenda-item category-${event.category}`}><time><strong>{date.getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span></time><div><strong>{event.title}</strong><small>{event.time || 'All day'} · {event.category}</small></div><ArrowRight size={16} /></Link>
+            })}</div> : <p className="home-agenda-empty">The calendar is clear for now.</p>}
+          </div>
+          <div className="home-sticky-wall" aria-label="Learning reminders">
+            <article className="home-sticky colour-pink tilt-1"><span className="sticky-tape" /><small>Current chapter</small><p>{settings.trainingLabel}</p></article>
+            <article className="home-sticky colour-yellow tilt-2"><span className="sticky-tape" /><small>Gentle reminder</small><p>Learning does not need to look perfect to count.</p></article>
+            <article className="home-sticky colour-lilac tilt-0"><span className="sticky-tape" /><small>On the desk</small><p>{items.length ? `${items.length} pieces collected so far ♡` : 'A fresh page, ready for the first idea.'}</p></article>
+          </div>
+        </div>
       </section>
 
       <section className="section-shell content-section">
