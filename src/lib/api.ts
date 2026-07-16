@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
 import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
-import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote } from '../types'
+import { DEMO_NURSING_SKILLS, DEMO_STUDY_CARDS, DEMO_STUDY_REFLECTIONS } from './demo-study'
+import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
 const LOCAL_SETTINGS_KEY = 'nya-local-settings-v1'
@@ -10,6 +11,9 @@ const LOCAL_EMAIL_KEY = 'nya-local-owner-email-v1'
 const LOCAL_EVENTS_KEY = 'nya-local-calendar-v1'
 const LOCAL_NOTES_KEY = 'nya-local-stickies-v1'
 const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
+const LOCAL_STUDY_CARDS_KEY = 'nya-local-study-cards-v1'
+const LOCAL_NURSING_SKILLS_KEY = 'nya-local-nursing-skills-v1'
+const LOCAL_REFLECTIONS_KEY = 'nya-local-reflections-v1'
 const LOCAL_VIEW_PREFIX = 'nya-local-viewed-v1:'
 const SETTINGS_CHANNEL = 'nya-settings-sync-v1'
 const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true'
@@ -114,6 +118,7 @@ function normaliseSettings(settings: Partial<SiteSettings>): SiteSettings {
   const parsed = { ...DEFAULT_SETTINGS, ...settings }
   if (parsed.siteTitle === 'Nya Learning Studio' || parsed.siteTitle === "Nya's Learning Atelier") parsed.siteTitle = DEFAULT_SETTINGS.siteTitle
   if (parsed.eyebrow === 'Nursing training · Berlin learning journal') parsed.eyebrow = DEFAULT_SETTINGS.eyebrow
+  if (/pflegefachkraft/i.test(parsed.trainingLabel)) parsed.trainingLabel = DEFAULT_SETTINGS.trainingLabel
   return parsed
 }
 
@@ -143,6 +148,9 @@ function writeLocalCollection<T>(key: string, values: T[]) {
 const readLocalEvents = () => readLocalCollection(LOCAL_EVENTS_KEY, DEMO_CALENDAR_EVENTS)
 const readLocalNotes = () => readLocalCollection(LOCAL_NOTES_KEY, DEMO_STICKY_NOTES)
 const readLocalTasks = () => readLocalCollection(LOCAL_TASKS_KEY, DEMO_TASKS)
+const readLocalStudyCards = () => readLocalCollection(LOCAL_STUDY_CARDS_KEY, DEMO_STUDY_CARDS)
+const readLocalNursingSkills = () => readLocalCollection(LOCAL_NURSING_SKILLS_KEY, DEMO_NURSING_SKILLS)
+const readLocalReflections = () => readLocalCollection(LOCAL_REFLECTIONS_KEY, DEMO_STUDY_REFLECTIONS)
 
 function localFileAsset(file: File): Promise<MediaAsset> {
   if (file.size > 2.5 * 1024 * 1024) {
@@ -433,6 +441,52 @@ export const adminApi = {
   removeTask: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_TASKS_KEY, readLocalTasks().filter((task) => task.id !== id)); return { ok: true } }
     return request<{ ok: true }>(`/api/admin/tasks/${id}`, { method: 'DELETE' })
+  },
+  studyHub: async (): Promise<StudyHubData> => {
+    if (LOCAL_DEMO) return { cards: readLocalStudyCards(), skills: readLocalNursingSkills(), reflections: readLocalReflections() }
+    return request<StudyHubData>('/api/admin/study-hub')
+  },
+  saveStudyCard: async (card: StudyCard, create = false): Promise<{ card: StudyCard }> => {
+    if (LOCAL_DEMO) {
+      const cards = readLocalStudyCards()
+      const exists = cards.some((candidate) => candidate.id === card.id)
+      const saved = { ...card, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_STUDY_CARDS_KEY, exists ? cards.map((candidate) => candidate.id === card.id ? saved : candidate) : [saved, ...cards])
+      return { card: saved }
+    }
+    return request<{ card: StudyCard }>(`/api/admin/study-cards${create ? '' : `/${card.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(card) })
+  },
+  removeStudyCard: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_STUDY_CARDS_KEY, readLocalStudyCards().filter((card) => card.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/study-cards/${id}`, { method: 'DELETE' })
+  },
+  saveNursingSkill: async (skill: NursingSkill, create = false): Promise<{ skill: NursingSkill }> => {
+    if (LOCAL_DEMO) {
+      const skills = readLocalNursingSkills()
+      const exists = skills.some((candidate) => candidate.id === skill.id)
+      const saved = { ...skill, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_NURSING_SKILLS_KEY, exists ? skills.map((candidate) => candidate.id === skill.id ? saved : candidate) : [saved, ...skills])
+      return { skill: saved }
+    }
+    return request<{ skill: NursingSkill }>(`/api/admin/nursing-skills${create ? '' : `/${skill.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(skill) })
+  },
+  removeNursingSkill: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_NURSING_SKILLS_KEY, readLocalNursingSkills().filter((skill) => skill.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/nursing-skills/${id}`, { method: 'DELETE' })
+  },
+  saveReflection: async (reflection: StudyReflection, create = false): Promise<{ reflection: StudyReflection }> => {
+    if (LOCAL_DEMO) {
+      const reflections = readLocalReflections()
+      const exists = reflections.some((candidate) => candidate.id === reflection.id)
+      const saved = { ...reflection, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_REFLECTIONS_KEY, exists ? reflections.map((candidate) => candidate.id === reflection.id ? saved : candidate) : [saved, ...reflections])
+      return { reflection: saved }
+    }
+    return request<{ reflection: StudyReflection }>(`/api/admin/reflections${create ? '' : `/${reflection.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(reflection) })
+  },
+  removeReflection: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_REFLECTIONS_KEY, readLocalReflections().filter((reflection) => reflection.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/reflections/${id}`, { method: 'DELETE' })
   },
   upload: async (file: File): Promise<{ asset: MediaAsset }> => {
     if (LOCAL_DEMO) return { asset: await localFileAsset(file) }

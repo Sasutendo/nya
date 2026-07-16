@@ -9,9 +9,9 @@ export function OwnerClock({ detailed = false }: { detailed?: boolean }) {
     return () => window.clearInterval(timer)
   }, [])
 
-  const time = useMemo(() => new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', second: detailed ? '2-digit' : undefined,
-    hour12: false,
+  const time = useMemo(() => new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin', hour: 'numeric', minute: '2-digit', second: detailed ? '2-digit' : undefined,
+    hour12: true,
   }).format(now), [detailed, now])
   const date = useMemo(() => new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Berlin', weekday: 'short', day: 'numeric', month: 'short',

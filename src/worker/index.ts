@@ -68,6 +68,35 @@ interface TaskRow {
   updated_at: string
 }
 
+interface StudyCardRow {
+  id: string
+  question: string
+  answer: string
+  category: string
+  created_at: string
+  updated_at: string
+}
+
+interface NursingSkillRow {
+  id: string
+  title: string
+  category: string
+  skill_status: 'learning' | 'practising' | 'confident'
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+interface ReflectionRow {
+  id: string
+  reflection_date: string
+  win: string
+  learned: string
+  revisit: string
+  created_at: string
+  updated_at: string
+}
+
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 const SESSION_SECONDS = 7 * 24 * 60 * 60
 const encoder = new TextEncoder()
@@ -150,6 +179,18 @@ function mapSticky(row: StickyRow) {
 
 function mapTask(row: TaskRow) {
   return { id: row.id, title: row.title, dueDate: row.due_date || undefined, priority: row.priority, completed: Boolean(row.completed), createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+function mapStudyCard(row: StudyCardRow) {
+  return { id: row.id, question: row.question, answer: row.answer, category: row.category, createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+function mapNursingSkill(row: NursingSkillRow) {
+  return { id: row.id, title: row.title, category: row.category, status: row.skill_status, notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+function mapReflection(row: ReflectionRow) {
+  return { id: row.id, date: row.reflection_date, win: row.win, learned: row.learned, revisit: row.revisit, createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -357,6 +398,19 @@ async function adminPlanner(env: Env): Promise<Response> {
   })
 }
 
+async function adminStudyHub(env: Env): Promise<Response> {
+  const [cards, skills, reflections] = await Promise.all([
+    env.DB.prepare('SELECT * FROM study_cards ORDER BY updated_at DESC').all<StudyCardRow>(),
+    env.DB.prepare("SELECT * FROM nursing_skills ORDER BY CASE skill_status WHEN 'practising' THEN 0 WHEN 'learning' THEN 1 ELSE 2 END, updated_at DESC").all<NursingSkillRow>(),
+    env.DB.prepare('SELECT * FROM study_reflections ORDER BY reflection_date DESC, updated_at DESC').all<ReflectionRow>(),
+  ])
+  return json({
+    cards: (cards.results || []).map(mapStudyCard),
+    skills: (skills.results || []).map(mapNursingSkill),
+    reflections: (reflections.results || []).map(mapReflection),
+  })
+}
+
 async function saveCalendarEvent(request: Request, env: Env, existingId?: string): Promise<Response> {
   const body = await parseBody(request)
   if (!body) return error('The calendar event is not valid JSON.')
@@ -426,6 +480,67 @@ async function saveTask(request: Request, env: Env, existingId?: string): Promis
   }
   const row = await env.DB.prepare('SELECT * FROM planner_tasks WHERE id=?').bind(id).first<TaskRow>()
   return json({ task: mapTask(row!) }, existingId ? 200 : 201)
+}
+
+async function saveStudyCard(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The study card is not valid JSON.')
+  const question = cleanText(body.question, 500)
+  const answer = cleanText(body.answer, 3000)
+  const category = cleanText(body.category, 100) || 'General'
+  if (!question || !answer) return error('Add both a question and an answer.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE study_cards SET question=?,answer=?,category=?,updated_at=? WHERE id=?').bind(question, answer, category, now, id).run()
+    if (!result.meta.changes) return error('This study card could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO study_cards (id,question,answer,category,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(id, question, answer, category, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM study_cards WHERE id=?').bind(id).first<StudyCardRow>()
+  return json({ card: mapStudyCard(row!) }, existingId ? 200 : 201)
+}
+
+async function saveNursingSkill(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The nursing skill is not valid JSON.')
+  const title = cleanText(body.title, 240)
+  const category = cleanText(body.category, 100) || 'General'
+  const status = cleanText(body.status, 20)
+  const notes = cleanText(body.notes, 1500)
+  if (!title) return error('Add a skill title.')
+  if (!['learning', 'practising', 'confident'].includes(status)) return error('Choose a valid skill status.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE nursing_skills SET title=?,category=?,skill_status=?,notes=?,updated_at=? WHERE id=?').bind(title, category, status, notes, now, id).run()
+    if (!result.meta.changes) return error('This nursing skill could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO nursing_skills (id,title,category,skill_status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').bind(id, title, category, status, notes, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM nursing_skills WHERE id=?').bind(id).first<NursingSkillRow>()
+  return json({ skill: mapNursingSkill(row!) }, existingId ? 200 : 201)
+}
+
+async function saveReflection(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The reflection is not valid JSON.')
+  const date = cleanText(body.date, 10)
+  const win = cleanText(body.win, 2000)
+  const learned = cleanText(body.learned, 2000)
+  const revisit = cleanText(body.revisit, 2000)
+  if (!validDate(date)) return error('Choose a valid reflection date.')
+  if (!win && !learned && !revisit) return error('Write at least one reflection thought.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE study_reflections SET reflection_date=?,win=?,learned=?,revisit=?,updated_at=? WHERE id=?').bind(date, win, learned, revisit, now, id).run()
+    if (!result.meta.changes) return error('This reflection could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO study_reflections (id,reflection_date,win,learned,revisit,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').bind(id, date, win, learned, revisit, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM study_reflections WHERE id=?').bind(id).first<ReflectionRow>()
+  return json({ reflection: mapReflection(row!) }, existingId ? 200 : 201)
 }
 
 async function login(request: Request, env: Env): Promise<Response> {
@@ -581,6 +696,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     if (admin instanceof Response) return admin
     if (request.method === 'GET' && path === '/api/admin/items') return listAdminItems(env)
     if (request.method === 'GET' && path === '/api/admin/planner') return adminPlanner(env)
+    if (request.method === 'GET' && path === '/api/admin/study-hub') return adminStudyHub(env)
     if (request.method === 'POST' && path === '/api/admin/items') return saveItem(request, env)
     if (path.startsWith('/api/admin/items/')) {
       const id = decodeURIComponent(path.slice('/api/admin/items/'.length))
@@ -629,6 +745,33 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
       if (request.method === 'DELETE') {
         const result = await env.DB.prepare('DELETE FROM planner_tasks WHERE id=?').bind(id).run()
         return result.meta.changes ? json({ ok: true }) : error('This task could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/study-cards') return saveStudyCard(request, env)
+    if (path.startsWith('/api/admin/study-cards/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/study-cards/'.length))
+      if (request.method === 'PUT') return saveStudyCard(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM study_cards WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This study card could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/nursing-skills') return saveNursingSkill(request, env)
+    if (path.startsWith('/api/admin/nursing-skills/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/nursing-skills/'.length))
+      if (request.method === 'PUT') return saveNursingSkill(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM nursing_skills WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This nursing skill could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/reflections') return saveReflection(request, env)
+    if (path.startsWith('/api/admin/reflections/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/reflections/'.length))
+      if (request.method === 'PUT') return saveReflection(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM study_reflections WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This reflection could not be found.', 404)
       }
     }
     if (request.method === 'POST' && path === '/api/admin/upload') return uploadMedia(request, env)

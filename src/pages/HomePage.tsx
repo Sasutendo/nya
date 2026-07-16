@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, Search, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
 import { OwnerClock } from '../components/OwnerClock'
 import { ContentCard } from '../components/ContentCard'
 import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicEvents, getPublicItems } from '../lib/api'
+import { notesForCycle } from '../lib/cute-notes'
 import type { CalendarEvent, ContentItem } from '../types'
 
 export function HomePage() {
@@ -13,10 +14,16 @@ export function HomePage() {
   const [items, setItems] = useState<ContentItem[]>([])
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [query, setQuery] = useState('')
+  const [noteCycle, setNoteCycle] = useState(() => Math.floor(Math.random() * 16))
   const navigate = useNavigate()
 
   useEffect(() => {
     Promise.all([getPublicItems(), getPublicEvents()]).then(([content, calendar]) => { setItems(content); setEvents(calendar) })
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNoteCycle((cycle) => cycle + 1), 12_000)
+    return () => window.clearInterval(timer)
   }, [])
 
   const featured = useMemo(() => items.filter((item) => item.featured).slice(0, 3), [items])
@@ -24,6 +31,7 @@ export function HomePage() {
   const firstSlide = previewDeck?.content.kind === 'presentation' ? previewDeck.content.slides[0] : undefined
   const today = new Date().toISOString().slice(0, 10)
   const upcoming = events.filter((event) => (event.endDate || event.date) >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
+  const cuteNotes = useMemo(() => notesForCycle(noteCycle), [noteCycle])
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault()
@@ -50,7 +58,7 @@ export function HomePage() {
           </form>
           <div className="profile-presence">
             <div className="profile-avatar-wrap"><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></div>
-            <div className="profile-presence-copy"><small>Currently learning with</small><strong>{settings.ownerName}</strong><span>Pflegefachkraft journey in progress</span></div>
+            <div className="profile-presence-copy"><small>Currently learning with</small><strong>{settings.ownerName}</strong><span>Nursing training journey in progress</span></div>
             <OwnerClock detailed />
           </div>
           <div className="hero-note">
@@ -76,6 +84,8 @@ export function HomePage() {
           <span className="site-sticker sticker-spark">✦</span>
           <span className="site-sticker sticker-care">tiny wins club</span>
           <span className="site-sticker sticker-cross">+</span>
+          <span className="site-sticker sticker-cat">ฅ^•ﻌ•^ฅ</span>
+          <span className="site-sticker sticker-combo">100× combo</span>
         </div>
       </section>
 
@@ -115,10 +125,10 @@ export function HomePage() {
               return <Link to="/calendar" key={event.id} className={`home-agenda-item category-${event.category}`}><time><strong>{date.getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span></time><div><strong>{event.title}</strong><small>{event.time || 'All day'} · {event.category}</small></div><ArrowRight size={16} /></Link>
             })}</div> : <p className="home-agenda-empty">The calendar is clear for now.</p>}
           </div>
-          <div className="home-sticky-wall" aria-label="Learning reminders">
+          <div className="home-sticky-wall" aria-label="Learning reminders" aria-live="polite">
+            <div className="sticky-wall-toolbar"><span>Yuuki's note shuffle</span><button type="button" onClick={() => setNoteCycle((cycle) => cycle + 3)}><RefreshCw size={14} />New notes</button></div>
             <article className="home-sticky colour-pink tilt-1"><span className="sticky-tape" /><small>Current chapter</small><p>{settings.trainingLabel}</p></article>
-            <article className="home-sticky colour-yellow tilt-2"><span className="sticky-tape" /><small>Gentle reminder</small><p>Learning does not need to look perfect to count.</p></article>
-            <article className="home-sticky colour-lilac tilt-0"><span className="sticky-tape" /><small>On the desk</small><p>{items.length ? `${items.length} pieces collected so far ♡` : 'A fresh page, ready for the first idea.'}</p></article>
+            {cuteNotes.map((note, index) => <article key={`${noteCycle}-${index}`} className={`home-sticky colour-${note.colour} tilt-${index % 3} is-rotating-note`}><span className="sticky-tape" /><small>{note.label}</small><p>{note.text}</p></article>)}
           </div>
         </div>
       </section>

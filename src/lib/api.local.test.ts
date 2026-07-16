@@ -48,6 +48,27 @@ describe('zero-configuration local preview', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('saves flashcards, nursing skills and reflections locally without exposing them publicly', async () => {
+    const hub = await adminApi.studyHub()
+    expect(hub.cards.length).toBeGreaterThan(0)
+    expect(hub.skills.length).toBeGreaterThan(0)
+
+    const time = new Date().toISOString()
+    const card = { id: 'test_card', question: 'What matters first?', answer: 'Safe, person-centred care.', category: 'Care', createdAt: time, updatedAt: time }
+    const skill = { id: 'test_skill', title: 'Structured handover', category: 'Communication', status: 'learning' as const, notes: 'Practise aloud.', createdAt: time, updatedAt: time }
+    const reflection = { id: 'test_reflection', date: time.slice(0, 10), win: 'Made one card.', learned: 'Active recall works.', revisit: 'Try it again tomorrow.', createdAt: time, updatedAt: time }
+
+    await adminApi.saveStudyCard(card, true)
+    await adminApi.saveNursingSkill(skill, true)
+    await adminApi.saveReflection(reflection, true)
+    const saved = await adminApi.studyHub()
+
+    expect(saved.cards.some((entry) => entry.id === card.id)).toBe(true)
+    expect(saved.skills.some((entry) => entry.id === skill.id)).toBe(true)
+    expect(saved.reflections.some((entry) => entry.id === reflection.id)).toBe(true)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('counts one local view per item and browser session', async () => {
     const before = (await getPublicItemForTest()).viewCount
     expect(await recordView('welcome-to-my-learning-studio')).toBe(before + 1)

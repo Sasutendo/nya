@@ -8,6 +8,7 @@ export type CalendarEventCategory = 'school' | 'placement' | 'assignment' | 'exa
 export type EventVisibility = 'public' | 'private'
 export type StickyNoteColour = 'pink' | 'peach' | 'yellow' | 'sage' | 'lilac'
 export type TaskPriority = 'low' | 'normal' | 'high'
+export type NursingSkillStatus = 'learning' | 'practising' | 'confident'
 
 export interface MediaAsset {
   id: string
@@ -144,4 +145,39 @@ export interface PlannerData {
   events: CalendarEvent[]
   notes: StickyNote[]
   tasks: PlannerTask[]
+}
+
+export interface StudyCard {
+  id: string
+  question: string
+  answer: string
+  category: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NursingSkill {
+  id: string
+  title: string
+  category: string
+  status: NursingSkillStatus
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StudyReflection {
+  id: string
+  date: string
+  win: string
+  learned: string
+  revisit: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StudyHubData {
+  cards: StudyCard[]
+  skills: NursingSkill[]
+  reflections: StudyReflection[]
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ChevronUp, Copy, FileText, FolderKanban, Image,
+  ArrowLeft, ArrowRight, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronUp, Copy, FileText, FolderKanban, Image,
   LayoutDashboard, LoaderCircle, LockKeyhole, LogOut, MonitorPlay, Paperclip, Plus, Presentation,
   Save, Settings, Trash2, Upload, Video, X,
 } from 'lucide-react'
@@ -38,6 +38,7 @@ export function StudioNav() {
     <nav className="studio-subnav" aria-label="Owner studio navigation">
       <Link to="/studio"><LayoutDashboard size={17} />Dashboard</Link>
       <Link to="/studio/planner"><CalendarDays size={17} />Planner</Link>
+      <Link to="/studio/study-hub"><BrainCircuit size={17} />Study hub</Link>
       <Link to="/studio/settings"><Settings size={17} />Site settings</Link>
       <button type="button" onClick={logout}><LogOut size={17} />Sign out</button>
     </nav>
@@ -159,6 +160,13 @@ export function StudioPage() {
         <div><p className="eyebrow">Your private corner</p><h2>Calendar, tasks and sticky notes</h2><small>Plan deadlines, keep quick thoughts and decide which milestones become public.</small></div>
         <span className="planner-banner-arrow">Open planner <ArrowRight size={18} /></span>
         <i className="banner-sticky sticky-one" /><i className="banner-sticky sticky-two" />
+      </Link>
+
+      <Link to="/studio/study-hub" className="studio-study-banner">
+        <span className="planner-banner-icon"><BrainCircuit size={23} /></span>
+        <div><p className="eyebrow">Study toolkit</p><h2>Flashcards, focus and nursing skills</h2><small>Practise active recall, track clinical skills and save gentle daily reflections.</small></div>
+        <span className="planner-banner-arrow">Open study hub <ArrowRight size={18} /></span>
+        <i>✦</i><i>♡</i>
       </Link>
 
       <section className="create-section">

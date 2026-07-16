@@ -14,6 +14,13 @@ const navigation = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
 ]
 
+const footerEggs = ['nya', 'osu', 'code', 'care', 'sasu', 'cat', 'coffee'] as const
+
+function openRandomEasterEgg() {
+  const kind = footerEggs[Math.floor(Math.random() * footerEggs.length)]
+  window.dispatchEvent(new CustomEvent('nya:surprise', { detail: kind }))
+}
+
 export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
@@ -73,7 +80,7 @@ export function AppLayout() {
       <footer className="site-footer">
         <div className="footer-inner">
           <div>
-            <button type="button" className="footer-mark easter-trigger" onClick={() => window.dispatchEvent(new Event('nya:surprise'))} aria-label="Open a tiny corner surprise" title="There might be a tiny surprise here">N</button>
+            <button type="button" className="footer-mark easter-trigger" onClick={openRandomEasterEgg} aria-label="Open a tiny corner surprise" title="There might be a tiny surprise here">N</button>
             <p><strong>{settings.siteTitle}</strong><br />{settings.footerNote}</p>
           </div>
           <p className="footer-meta">© {new Date().getFullYear()} {settings.ownerName} · Public to read, private to edit.</p>

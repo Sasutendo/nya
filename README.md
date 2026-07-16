@@ -19,6 +19,7 @@ This project is designed to grow throughout my training. It gives finished schoo
 - Cozy light and dark themes with a saved personal preference
 - A public calendar for milestones and selected training dates
 - A private planner with tasks, deadlines and colourful sticky notes
+- A private study hub with flashcards, a focus timer, nursing-skill tracking and daily reflections
 - Calendar printing and iCalendar export
 - An editable profile picture and a live owner clock
 - Automatic settings saving and live visitor synchronization

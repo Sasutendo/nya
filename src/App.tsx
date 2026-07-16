@@ -16,6 +16,7 @@ const StudioEditorPage = lazy(() => import('./pages/studio/StudioPages').then((m
 const StudioLoginPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioLoginPage })))
 const StudioSettingsPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioSettingsPage })))
 const PlannerPage = lazy(() => import('./pages/studio/PlannerPage').then((module) => ({ default: module.PlannerPage })))
+const StudyHubPage = lazy(() => import('./pages/studio/StudyHubPage').then((module) => ({ default: module.StudyHubPage })))
 
 interface SiteContextValue {
   settings: SiteSettings
@@ -92,6 +93,7 @@ export default function App() {
           <Route path="studio/edit/:id" element={<StudioEditorPage />} />
           <Route path="studio/settings" element={<StudioSettingsPage />} />
           <Route path="studio/planner" element={<PlannerPage />} />
+          <Route path="studio/study-hub" element={<StudyHubPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route path="present/:slug" element={<PresentationPage />} />
