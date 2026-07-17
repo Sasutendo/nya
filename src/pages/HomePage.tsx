@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
@@ -9,7 +9,7 @@ import { StudyJourneySection } from '../components/StudyJourneySection'
 import { SlideCanvas } from '../components/SlideCanvas'
 import { getPublicEvents, getPublicItems } from '../lib/api'
 import { notesForCycle } from '../lib/cute-notes'
-import { unlockAchievement } from '../lib/achievements'
+import { showEasterEgg, unlockAchievement, unlockEggAchievement } from '../lib/achievements'
 import { localizeAuthoredDefault, useLanguage } from '../lib/i18n'
 import type { CalendarEvent, ContentItem } from '../types'
 
@@ -20,11 +20,12 @@ export function HomePage() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [query, setQuery] = useState('')
   const [noteCycle, setNoteCycle] = useState(() => Math.floor(Math.random() * 16))
+  const profileTaps = useRef(0)
+  const shuffleTaps = useRef(0)
   const navigate = useNavigate()
 
   useEffect(() => {
     Promise.all([getPublicItems(), getPublicEvents()]).then(([content, calendar]) => { setItems(content); setEvents(calendar) })
-    unlockAchievement('first_visit')
   }, [])
 
   useEffect(() => {
@@ -49,6 +50,34 @@ export function HomePage() {
     navigate(value ? `/library?q=${encodeURIComponent(value)}` : '/library')
   }
 
+  function tapProfile() {
+    profileTaps.current += 1
+    if (profileTaps.current === 4) {
+      unlockEggAchievement('princess')
+      showEasterEgg('princess')
+    }
+  }
+
+  function findSticker(kind: 'osu' | 'care') {
+    unlockEggAchievement(kind)
+    showEasterEgg(kind)
+  }
+
+  function findWelcomeHeart() {
+    unlockAchievement('first_visit')
+    showEasterEgg('nya')
+  }
+
+  function shuffleNotes() {
+    setNoteCycle((cycle) => cycle + 3)
+    shuffleTaps.current += 1
+    if (shuffleTaps.current === 3) {
+      unlockAchievement('coffee_break')
+      showEasterEgg('coffee')
+    }
+    if (shuffleTaps.current === 5) unlockAchievement('desk_curator')
+  }
+
   return (
     <>
       <section className="hero section-shell">
@@ -67,7 +96,7 @@ export function HomePage() {
             <button type="submit">{text('Search', 'Suchen')}</button>
           </form>
           <div className="profile-presence">
-            <div className="profile-avatar-wrap"><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></div>
+            <button type="button" className="profile-avatar-wrap profile-egg-trigger" onClick={tapProfile} aria-label={text('Yuuki’s profile picture', 'Yuukis Profilbild')}><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></button>
             <div className="profile-presence-copy"><small>{text('Currently learning with', 'Lernportfolio von')}</small><strong>{settings.ownerName}</strong><span>{text('Nursing training journey in progress', 'Auf dem Weg zur Pflegefachfrau')}</span></div>
             <OwnerClock detailed />
           </div>
@@ -88,14 +117,14 @@ export function HomePage() {
             {previewDeck && <Link to={`/present/${previewDeck.slug}`}>{text('Open deck', 'Präsentation öffnen')} <ArrowRight size={15} /></Link>}
           </div>
         </div>
-        <div className="hero-stickers" aria-hidden="true">
-          <span className="site-sticker sticker-heart">♡</span>
+        <div className="hero-stickers">
+          <button type="button" className="site-sticker sticker-heart sticker-egg-trigger" onClick={findWelcomeHeart} aria-label={text('Welcome heart sticker', 'Willkommensherz-Sticker')}>♡</button>
           <span className="site-sticker sticker-study">{text('study mode', 'lernmodus')}</span>
           <span className="site-sticker sticker-spark">✦</span>
           <span className="site-sticker sticker-care">{text('tiny wins club', 'club der kleinen erfolge')}</span>
-          <span className="site-sticker sticker-cross">+</span>
+          <button type="button" className="site-sticker sticker-cross sticker-egg-trigger" onClick={() => findSticker('care')} aria-label={text('Tiny nursing cross sticker', 'Kleiner Pflegekreuz-Sticker')}>+</button>
           <span className="site-sticker sticker-cat">ฅ^•ﻌ•^ฅ</span>
-          <span className="site-sticker sticker-combo">100× combo</span>
+          <button type="button" className="site-sticker sticker-combo sticker-egg-trigger" onClick={() => findSticker('osu')}>100× combo</button>
         </div>
       </section>
 
@@ -138,7 +167,7 @@ export function HomePage() {
             })}</div> : <p className="home-agenda-empty">{text('The calendar is clear for now.', 'Der Kalender ist im Moment frei.')}</p>}
           </div>
           <div className="home-sticky-wall" aria-label={text('Learning reminders', 'Lernerinnerungen')} aria-live="polite">
-            <div className="sticky-wall-toolbar"><span>{text("Yuuki's note shuffle", 'Yuukis Notiz-Mix')}</span><button type="button" onClick={() => setNoteCycle((cycle) => cycle + 3)}><RefreshCw size={14} />{text('New notes', 'Neue Notizen')}</button></div>
+            <div className="sticky-wall-toolbar"><span>{text("Yuuki's note shuffle", 'Yuukis Notiz-Mix')}</span><button type="button" onClick={shuffleNotes}><RefreshCw size={14} />{text('New notes', 'Neue Notizen')}</button></div>
             <article className="home-sticky colour-pink tilt-1"><span className="sticky-tape" /><small>{text('Current chapter', 'Aktuelles Kapitel')}</small><p>{displayTraining}</p></article>
             {cuteNotes.map((note, index) => <article key={`${noteCycle}-${index}`} className={`home-sticky colour-${note.colour} tilt-${index % 3} is-rotating-note`}><span className="sticky-tape" /><small>{language === 'de' ? note.labelDe : note.label}</small><p>{language === 'de' ? note.textDe : note.text}</p></article>)}
           </div>

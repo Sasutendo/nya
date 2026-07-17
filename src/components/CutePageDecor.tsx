@@ -1,5 +1,6 @@
+import { useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { showEasterEgg, unlockAchievement } from '../lib/achievements'
+import { showEasterEgg, unlockAchievement, unlockEggAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
 function routeMessage(path: string): { en: string; de: string; doodle: string } {
@@ -16,16 +17,25 @@ export function CutePageDecor() {
   const location = useLocation()
   const { language, text } = useLanguage()
   const detail = routeMessage(location.pathname)
+  const ribbonTaps = useRef(0)
 
   function findCat() {
     unlockAchievement('study_cat')
     showEasterEgg('cat')
   }
 
+  function tapRibbon() {
+    ribbonTaps.current += 1
+    if (ribbonTaps.current === 3) {
+      unlockEggAchievement('sasu')
+      showEasterEgg('sasu')
+    }
+  }
+
   return <div className="cute-page-decor" aria-label={text('Decorative corner details', 'Dekorative Details der Ecke')}>
     <span className="page-doodle page-doodle-one" aria-hidden="true">{detail.doodle}</span>
     <span className="page-doodle page-doodle-two" aria-hidden="true">✦</span>
-    <span className="page-ribbon" aria-hidden="true">{detail[language]}</span>
+    <button type="button" className="page-ribbon ribbon-egg-trigger" onClick={tapRibbon}>{detail[language]}</button>
     <button type="button" className="corner-cat" onClick={findCat} aria-label={text('A tiny hidden study cat', 'Eine kleine versteckte Lernkatze')} title="pspsps…">ฅ^•ﻌ•^ฅ</button>
   </div>
 }

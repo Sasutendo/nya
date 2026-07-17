@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { achievementForEgg, getUnlockedAchievements, showEasterEgg, unlockAchievement, unlockEggAchievement } from './achievements'
+import { achievementForEgg, getUnlockedAchievements, resetAchievements, showEasterEgg, unlockAchievement, unlockEggAchievement } from './achievements'
 import { localizeAuthoredDefault } from './i18n'
 
 class MemoryStorage {
   private values = new Map<string, string>()
   getItem(key: string) { return this.values.get(key) ?? null }
   setItem(key: string, value: string) { this.values.set(key, value) }
+  removeItem(key: string) { this.values.delete(key) }
 }
 
 describe('visitor achievements and language defaults', () => {
@@ -34,6 +35,12 @@ describe('visitor achievements and language defaults', () => {
     expect(unlockEggAchievement('osu')).toBe(true)
     expect(unlockEggAchievement('osu')).toBe(false)
     expect(getUnlockedAchievements()).toEqual(['rhythm_combo'])
+  })
+
+  it('can reset the browser collection for another test run', () => {
+    unlockAchievement('study_cat')
+    resetAchievements()
+    expect(getUnlockedAchievements()).toEqual([])
   })
 
   it('localizes only untouched default copy', () => {

@@ -56,6 +56,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .site-shell { min-height: 100vh; }
 .cute-page-decor { position: relative; z-index: 85; pointer-events: none; }
 .page-ribbon { position: fixed; top: 96px; right: 13px; transform: rotate(3deg); padding: 7px 11px; border: 1px solid var(--line); border-radius: 8px; color: #795267; background: rgba(255,242,247,.88); box-shadow: 0 8px 24px rgba(96,51,70,.12); font-family: "Segoe Print", "Bradley Hand", ui-rounded, sans-serif; font-size: .56rem; font-weight: 800; backdrop-filter: blur(10px); }
+.ribbon-egg-trigger { cursor: pointer; pointer-events: auto; }
 .page-doodle { position: fixed; color: rgba(183,92,129,.35); font-family: Georgia, serif; pointer-events: none; }
 .page-doodle-one { top: 22%; left: 12px; transform: rotate(-13deg); font-size: 1.65rem; }
 .page-doodle-two { right: 22px; bottom: 92px; transform: rotate(11deg); font-size: 1.15rem; }
@@ -117,9 +118,8 @@ html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolu
 .footer-inner p { margin: 0; color: var(--ink-soft); font-size: .82rem; line-height: 1.55; }
 .footer-inner strong { color: var(--ink); }
 .footer-mark { width: 36px; border-radius: 12px; }
-.easter-trigger { border: 0; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
-.easter-trigger:hover { transform: rotate(-7deg) scale(1.06); box-shadow: 0 7px 18px rgba(104,57,76,.18); }
 .footer-meta { text-align: right; }
+.footer-code-trigger { padding: 0; border: 0; color: var(--ink-soft); background: transparent; font: inherit; cursor: pointer; }
 
 .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 15px; color: var(--sage-dark); font-size: .72rem; font-weight: 800; letter-spacing: .105em; text-transform: uppercase; }
 .eyebrow > span { display: block; width: 26px; height: 1px; background: currentColor; }
@@ -152,6 +152,7 @@ html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolu
 .profile-avatar-wrap, .profile-settings-preview { position: relative; overflow: visible; flex: 0 0 auto; }
 .profile-avatar-wrap { width: 58px; aspect-ratio: 1; }
 .profile-avatar-wrap { animation: avatar-bob 5.5s ease-in-out infinite; }
+.profile-egg-trigger { padding: 0; border: 0; background: transparent; cursor: pointer; }
 .profile-avatar-wrap img, .profile-settings-preview img { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; border: 3px solid rgba(255,255,255,.8); box-shadow: 0 9px 24px rgba(104,57,76,.17); }
 .profile-avatar-wrap img { border-radius: 17px; }
 .profile-avatar-wrap > span, .profile-settings-preview > span { position: absolute; right: -3px; bottom: -3px; width: 15px; aspect-ratio: 1; border: 3px solid var(--white); border-radius: 50%; background: #79b28b; }
@@ -161,6 +162,8 @@ html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolu
 .profile-presence-copy span { color: var(--sage-dark); font-size: .62rem; font-weight: 750; }
 .hero-stickers { position: absolute; inset: 0; pointer-events: none; }
 .site-sticker { position: absolute; z-index: 4; display: grid; place-items: center; border: 1px solid rgba(105,66,83,.12); color: #6a4052; background: #fff4f8; box-shadow: 0 8px 23px rgba(96,51,70,.13); font-weight: 850; }
+.sticker-egg-trigger { cursor: pointer; pointer-events: auto; transition: transform .2s ease, filter .2s ease; }
+.sticker-egg-trigger:hover { filter: brightness(1.06); }
 .sticker-heart { top: 69px; right: -12px; width: 46px; aspect-ratio: 1; transform: rotate(11deg); border-radius: 50%; color: #b95e80; font-size: 1.65rem; }
 .sticker-study { right: 35%; bottom: 42px; transform: rotate(-5deg); padding: 9px 13px; border-radius: 9px; font-family: "Segoe Print", ui-rounded, sans-serif; font-size: .61rem; letter-spacing: .02em; }
 .sticker-spark { top: 40%; left: 48%; width: 34px; aspect-ratio: 1; transform: rotate(-8deg); border-radius: 10px; color: #9871a0; font-size: 1.15rem; }
@@ -883,6 +886,7 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .achievement-progress > span strong { color: var(--ink); font-family: Georgia, serif; font-size: 1.2rem; font-weight: 500; }
 .achievement-progress > div { overflow: hidden; height: 7px; border-radius: 999px; background: var(--paper-deep); }
 .achievement-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--sage), #dc88a9, var(--plum)); transition: width .45s ease; }
+.achievement-progress > button { display: block; margin: 10px 0 0 auto; padding: 0; border: 0; color: var(--ink-soft); background: transparent; font-size: .56rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .achievement-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
 .achievement-grid article { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; min-height: 105px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,249,251,.66); transition: transform .2s ease, box-shadow .2s ease; }
 .achievement-grid article.is-unlocked { border-color: rgba(189,101,137,.27); background: linear-gradient(120deg, rgba(248,210,224,.78), rgba(237,220,244,.68)); box-shadow: var(--shadow-sm); }

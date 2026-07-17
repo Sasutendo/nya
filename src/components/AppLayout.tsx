@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, Presentation, Sun, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
@@ -6,16 +6,8 @@ import { classes } from '../lib/format'
 import { EasterEggs } from './EasterEggs'
 import { CutePageDecor } from './CutePageDecor'
 import { OwnerClock } from './OwnerClock'
-import { showEasterEgg, unlockAchievement } from '../lib/achievements'
+import { showEasterEgg, unlockEggAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
-
-const footerEggs = ['nya', 'osu', 'code', 'care', 'sasu', 'cat', 'coffee'] as const
-
-function openRandomEasterEgg() {
-  unlockAchievement('secret_button')
-  const kind = footerEggs[Math.floor(Math.random() * footerEggs.length)]
-  showEasterEgg(kind)
-}
 
 export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -23,6 +15,31 @@ export function AppLayout() {
   const { settings } = useSite()
   const { theme, toggleTheme } = useTheme()
   const { language, toggleLanguage, text } = useLanguage()
+  const brandTaps = useRef(0)
+  const footerTaps = useRef(0)
+  const languageTaps = useRef(0)
+
+  function tapBrand() {
+    brandTaps.current += 1
+    if (brandTaps.current === 5) {
+      unlockEggAchievement('nya')
+      showEasterEgg('yuuki')
+    }
+  }
+
+  function tapCopyright() {
+    footerTaps.current += 1
+    if (footerTaps.current === 3) {
+      unlockEggAchievement('code')
+      showEasterEgg('code')
+    }
+  }
+
+  function changeLanguage() {
+    toggleLanguage()
+    languageTaps.current += 1
+    if (languageTaps.current === 5) showEasterEgg('anime')
+  }
   const navigation = [
     { to: '/library', label: text('Library', 'Bibliothek'), icon: BookOpen },
     { to: '/presentations', label: text('Presentations', 'Präsentationen'), icon: Presentation },
@@ -38,7 +55,7 @@ export function AppLayout() {
       <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="site-header">
         <div className="header-inner">
-          <Link to="/" className="brand" aria-label={`${settings.siteTitle} home`}>
+          <Link to="/" className="brand" aria-label={`${settings.siteTitle} home`} onClick={tapBrand}>
             <span className="brand-avatar" aria-hidden="true"><img src={settings.profileImage} alt="" /></span>
             <span className="brand-copy">
               <strong>{settings.siteTitle}</strong>
@@ -48,7 +65,7 @@ export function AppLayout() {
 
           <div className="header-actions">
             <OwnerClock />
-            <button type="button" className="language-toggle" onClick={toggleLanguage} aria-label={text('Switch website to German', 'Webseite auf Englisch umstellen')} title={text('Switch to German', 'Zu Englisch wechseln')}>
+            <button type="button" className="language-toggle" onClick={changeLanguage} aria-label={text('Switch website to German', 'Webseite auf Englisch umstellen')} title={text('Switch to German', 'Zu Englisch wechseln')}>
               <Languages size={16} /><strong>{language.toUpperCase()}</strong><span>{language === 'de' ? 'EN' : 'DE'}</span>
             </button>
             <button type="button" className="icon-button theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
@@ -89,10 +106,10 @@ export function AppLayout() {
       <footer className="site-footer">
         <div className="footer-inner">
           <div>
-            <button type="button" className="footer-mark easter-trigger" onClick={openRandomEasterEgg} aria-label={text('Open a tiny corner surprise', 'Eine kleine Überraschung öffnen')} title={text('There might be a tiny surprise here', 'Hier könnte eine kleine Überraschung sein')}>N</button>
+            <span className="footer-mark" aria-hidden="true">N</span>
             <p><strong>{settings.siteTitle}</strong><br />{settings.footerNote}</p>
           </div>
-          <p className="footer-meta">© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</p>
+          <button type="button" className="footer-meta footer-code-trigger" onClick={tapCopyright}>© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</button>
         </div>
       </footer>
       <EasterEggs ownerName={settings.ownerName} />

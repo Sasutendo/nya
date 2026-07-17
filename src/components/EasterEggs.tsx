@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { unlockAchievement, unlockEggAchievement } from '../lib/achievements'
+import { unlockAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
 type EggKind = 'nya' | 'osu' | 'code' | 'care' | 'sasu' | 'cat' | 'coffee' | 'princess' | 'eepy' | 'anime' | 'yuuki'
@@ -25,7 +25,6 @@ export function EasterEggs({ ownerName }: { ownerName: string }) {
   const [surprise, setSurprise] = useState<{ key: number; kind: EggKind } | null>(null)
 
   useEffect(() => {
-    let typed = ''
     let sequence: string[] = []
     const classic = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a']
     const reveal = (event?: Event) => {
@@ -44,13 +43,6 @@ export function EasterEggs({ ownerName }: { ownerName: string }) {
         setSurprise({ key: Date.now(), kind: 'princess' })
         return
       }
-      typed = `${typed}${event.key.toLowerCase()}`.slice(-8)
-      const match = triggers.find((trigger) => typed.endsWith(trigger))
-      if (match) {
-        typed = ''
-        unlockEggAchievement(match)
-        setSurprise({ key: Date.now(), kind: match })
-      }
     }
     window.addEventListener('keydown', onKey)
     window.addEventListener('nya:surprise', reveal)
@@ -58,6 +50,19 @@ export function EasterEggs({ ownerName }: { ownerName: string }) {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('nya:surprise', reveal)
     }
+  }, [])
+
+  useEffect(() => {
+    const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', hour12: false }).format(new Date()))
+    if (hour > 5) return
+    let seen = false
+    try { seen = sessionStorage.getItem('nya-eepy-seen') === 'yes' } catch { /* Show once when storage is unavailable. */ }
+    if (seen) return
+    const timer = window.setTimeout(() => {
+      try { sessionStorage.setItem('nya-eepy-seen', 'yes') } catch { /* Visual-only surprise. */ }
+      setSurprise({ key: Date.now(), kind: 'eepy' })
+    }, 1_400)
+    return () => window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {

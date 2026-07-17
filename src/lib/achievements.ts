@@ -1,5 +1,5 @@
 export type AchievementId =
-  | 'first_visit' | 'secret_button' | 'nya_whisper' | 'rhythm_combo' | 'code_care'
+  | 'first_visit' | 'desk_curator' | 'nya_whisper' | 'rhythm_combo' | 'code_care'
   | 'care_heart' | 'moonlit_path' | 'study_cat' | 'coffee_break' | 'dark_dream'
   | 'tiny_reflection' | 'focus_round' | 'princess_mode' | 'classic_code'
 
@@ -13,23 +13,24 @@ export interface AchievementDefinition {
 }
 
 export const ACHIEVEMENTS: AchievementDefinition[] = [
-  { id: 'first_visit', icon: '♡', title: 'Welcome, wanderer', hint: 'Find the beginning of the corner.', titleDe: 'Willkommen, Wanderer', hintDe: 'Finde den Anfang dieser Ecke.' },
-  { id: 'secret_button', icon: 'N', title: 'The little N', hint: 'A footer mark is more than decoration.', titleDe: 'Das kleine N', hintDe: 'Das kleine N ganz unten ist nicht nur Deko.' },
-  { id: 'nya_whisper', icon: '✦', title: 'Nya whisper', hint: 'Type the sound of the corner.', titleDe: 'Nya-Flüstern', hintDe: 'Tippe den Klang dieser Ecke.' },
-  { id: 'rhythm_combo', icon: '○', title: 'Perfect combo', hint: 'Type the name of Yuuki’s favourite rhythm game.', titleDe: 'Perfekte Combo', hintDe: 'Tippe den Namen von Yuukis Lieblings-Rhythmusspiel.' },
-  { id: 'code_care', icon: '</>', title: 'Code & care', hint: 'Summon the coder brain with four letters.', titleDe: 'Code & Pflege', hintDe: 'Vier Buchstaben wecken den Coding-Modus.' },
-  { id: 'care_heart', icon: '+', title: 'Care heart', hint: 'The reason this learning journey exists.', titleDe: 'Pflegeherz', hintDe: 'Der Grund für diese Lernreise.' },
-  { id: 'moonlit_path', icon: '☾', title: 'Moonlit path', hint: 'One of Yuuki’s shorter names opens it.', titleDe: 'Pfad im Mondlicht', hintDe: 'Einer von Yuukis kürzeren Namen öffnet ihn.' },
+  { id: 'first_visit', icon: '♡', title: 'Welcome, wanderer', hint: 'A floating heart waits near the beginning of the corner.', titleDe: 'Willkommen, Wanderer', hintDe: 'Am Anfang der Lernecke schwebt ein kleines Herz.' },
+  { id: 'desk_curator', icon: '✎', title: 'Desk curator', hint: 'Refresh the little desk notes a few times.', titleDe: 'Schreibtisch-Kuratorin', hintDe: 'Misch die kleinen Notizen auf dem Lerntisch ein paarmal neu.' },
+  { id: 'nya_whisper', icon: '✦', title: 'Nya whisper', hint: 'The tiny profile in the header likes attention.', titleDe: 'Nya-Flüstern', hintDe: 'Das kleine Profilbild im Kopfbereich freut sich über Aufmerksamkeit.' },
+  { id: 'rhythm_combo', icon: '○', title: 'Perfect combo', hint: 'There is a suspicious combo sticker near the first slide.', titleDe: 'Perfekte Combo', hintDe: 'Neben der ersten Folie klebt eine verdächtige Combo.' },
+  { id: 'code_care', icon: '</>', title: 'Code & care', hint: 'The copyright line contains a little developer secret.', titleDe: 'Code & Pflege', hintDe: 'In der Copyright-Zeile steckt ein kleines Entwicklergeheimnis.' },
+  { id: 'care_heart', icon: '+', title: 'Care heart', hint: 'A tiny medical cross is hiding near the presentation preview.', titleDe: 'Pflegeherz', hintDe: 'Neben der Präsentationsvorschau versteckt sich ein kleines Pflegekreuz.' },
+  { id: 'moonlit_path', icon: '☾', title: 'Moonlit path', hint: 'A page ribbon may open after three gentle taps.', titleDe: 'Pfad im Mondlicht', hintDe: 'Ein Seitenbändchen öffnet sich vielleicht nach drei sanften Klicks.' },
   { id: 'study_cat', icon: 'ฅ', title: 'Study cat', hint: 'A tiny animal is hiding around every page.', titleDe: 'Lernkatze', hintDe: 'Auf jeder Seite versteckt sich ein kleines Tier.' },
-  { id: 'coffee_break', icon: '☕', title: 'Warm checkpoint', hint: 'Type the coziest study drink.', titleDe: 'Warmer Checkpoint', hintDe: 'Tippe das gemütlichste Lerngetränk.' },
+  { id: 'coffee_break', icon: '☕', title: 'Warm checkpoint', hint: 'The note shuffle eventually asks for a drink break.', titleDe: 'Warmer Checkpoint', hintDe: 'Beim Notizen-Mischen wird irgendwann eine Getränkepause fällig.' },
   { id: 'dark_dream', icon: '●', title: 'Dark dream', hint: 'Let the corner rest in its darker colours.', titleDe: 'Dunkler Traum', hintDe: 'Lass die Ecke in dunkleren Farben ruhen.' },
   { id: 'tiny_reflection', icon: '✎', title: 'A look back', hint: 'Open one of Yuuki’s published reflection highlights.', titleDe: 'Ein Blick zurück', hintDe: 'Lies einen Rückblick aus Yuukis Projekten.' },
   { id: 'focus_round', icon: '◷', title: 'End of the deck', hint: 'Stay with a presentation until its final slide.', titleDe: 'Ende der Präsentation', hintDe: 'Bleib bei einer Präsentation bis zur letzten Folie.' },
-  { id: 'princess_mode', icon: '♛', title: 'Do not wake the princess', hint: 'Type what a crown might call its owner.', titleDe: 'Weck die Prinzessin nicht', hintDe: 'Tippe, wie eine Krone ihre Besitzerin nennen könnte.' },
+  { id: 'princess_mode', icon: '♛', title: 'Do not wake the princess', hint: 'The larger profile picture knows who wears the crown.', titleDe: 'Weck die Prinzessin nicht', hintDe: 'Das große Profilbild weiß, wem die Krone gehört.' },
   { id: 'classic_code', icon: '↑', title: 'Old-school secret', hint: 'A famous sequence begins up, up, down, down…', titleDe: 'Oldschool-Geheimnis', hintDe: 'Eine berühmte Folge beginnt hoch, hoch, runter, runter …' },
 ]
 
-const STORAGE_KEY = 'nya-achievements-v1'
+// Versioned so this release starts with a clean collection while the interaction system is tested.
+const STORAGE_KEY = 'nya-achievements-v2'
 
 export function getUnlockedAchievements(): AchievementId[] {
   try {
@@ -52,6 +53,11 @@ export function achievementForEgg(kind: string): AchievementId | undefined {
     nya: 'nya_whisper', osu: 'rhythm_combo', code: 'code_care', care: 'care_heart', sasu: 'moonlit_path',
     cat: 'study_cat', coffee: 'coffee_break', princess: 'princess_mode',
   }[kind] as AchievementId | undefined
+}
+
+export function resetAchievements(): void {
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* The in-memory view can still refresh. */ }
+  window.dispatchEvent(new CustomEvent('nya:achievement-reset'))
 }
 
 export function unlockEggAchievement(kind: string): boolean {

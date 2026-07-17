@@ -1,41 +1,58 @@
-# Nya Yuuki's Learning Corner
+# ♡ Nya Yuuki’s Learning Corner
 
-Nya Yuuki's Learning Corner is a personal learning portfolio for my nursing training.
+> A cozy, bilingual learning portfolio for Yuuki’s nursing journey — carefully studied, beautifully collected.
 
-It brings presentations, study notes and practical projects together in one calm, organised space. Published work can be viewed publicly, while the private studio is reserved for creating and managing content.
+Nya Yuuki’s Learning Corner brings presentations, study notes, practical projects and milestones together in one calm public archive. Visitors can explore finished work, while every editing and study tool stays inside the private owner studio.
 
-## Purpose
+---
 
-This project is designed to grow throughout my training. It gives finished school work a permanent home, keeps different subjects easy to explore and makes presentations comfortable to show on both phones and computers.
+## ✦ What lives in the corner
 
-## Highlights
+- **Presentation studio** — responsive slide decks, full-screen playback and gentle text animations
+- **Learning library** — searchable presentations, notes and project reflections
+- **Media support** — images, GIFs, video, audio and downloadable files
+- **Study journey** — a read-only public overview of completed work and learning topics
+- **Private study hub** — flashcards, focus sessions, skill tracking and reflections for the owner
+- **Planning tools** — public milestones plus a private calendar, tasks and sticky notes
+- **Personal settings** — profile GIF, site copy and synchronized visitor-facing updates
+- **English and German** — a remembered language switch with natural public copy
+- **Cozy themes** — responsive light and dark designs for phones and computers
+- **Little secrets** — visitor-local achievements, hidden interactions and playful visual effects
 
-- A searchable public learning library
-- Full-screen presentation viewing
-- Selectable, reduced-motion-friendly slide animations
-- Dedicated areas for presentations, notes and projects
-- Support for images, video, audio and downloadable resources
-- Responsive layouts for phones, tablets and computers
-- Cozy light and dark themes with a saved personal preference
-- A public calendar for milestones and selected training dates
-- A private planner with tasks, deadlines and colourful sticky notes
-- A private study hub with flashcards, a focus timer, nursing-skill tracking and daily reflections
-- German-first public interface with a saved German/English switch
-- Read-only homepage overview of published learning, topics and reflection highlights
-- Visitor-local achievements with locked hints and secret unlocks
-- Route-specific cute details and different visual reactions for hidden easter eggs
-- Calendar printing and iCalendar export
-- An editable profile picture and a live owner clock
-- Automatic settings saving and live visitor synchronization
-- Session-deduplicated public view counting
-- Small, lightweight interactive surprises hidden around the corner
-- A private content studio for the owner
-- Draft and published content states
-- A calm, accessible and professional visual design
+## 🔒 Public outside, private inside
 
-## Status
+Published work is intentionally public and read-only. Visitors cannot add study cards, edit reflections, upload media or use the private Study Corner tools. Drafting, planning and publishing remain owner-only.
 
-The project is currently in active development. Content, features and visual details will continue to evolve throughout my training.
+Passwords, private email addresses and deployment secrets are not stored in this repository.
+
+## ✧ Easter egg guide
+
+Spoilers ahead — this is the complete list for testing.
+
+| Secret | How to find it | Result |
+| --- | --- | --- |
+| Welcome, wanderer | Click the floating heart by the homepage preview | Unlocks the welcome achievement |
+| Nya whisper | Click the small header profile five times | Adds a pink Yuuki glow and unlocks the achievement |
+| Perfect combo | Click the `100× combo` sticker | Starts rhythm rings and unlocks the combo achievement |
+| Code & care | Click the footer copyright line three times | Reveals the coding grid and unlocks the achievement |
+| Care heart | Click the little pink nursing cross near the preview | Adds the care glow and unlocks the achievement |
+| Moonlit path | Click a page ribbon three times | Casts the moonlit study effect and unlocks the achievement |
+| Study cat | Click the tiny cat in the lower corner | Sends paws across the page and unlocks the achievement |
+| Warm checkpoint | Shuffle the homepage sticky notes three times | Calls for coffee and unlocks the achievement |
+| Desk curator | Shuffle the homepage sticky notes five times | Unlocks the note-curator achievement |
+| Dark dream | Switch the website into dark mode | Unlocks the dark-theme achievement |
+| A look back | Open a published project reflection from the learning journey | Unlocks the reflection achievement |
+| End of the deck | Reach the final slide of a presentation | Unlocks the presentation achievement |
+| Princess mode | Click the large homepage profile picture four times | Equips the crown effect and unlocks the achievement |
+| Old-school secret | Enter `↑ ↑ ↓ ↓ ← → ← → B A` outside a text field | Unlocks the classic-code achievement |
+| Opening sequence | Switch between German and English five times | Plays a sparkly visual-only surprise |
+| Eepy hours | Visit between midnight and 5:59 AM in Yuuki’s local time | Softens the corner once per browser session |
+
+Achievements unlock only once per browser collection. Use **Reset my collection** above the achievement cards whenever another clean test run is needed. The footer **N is decorative** and does not trigger anything.
+
+## ♡ Project direction
+
+This project will grow alongside the nursing training: new school work, practical reflections, presentations and small quality-of-life features can be added without turning the public side into an editing workspace.
 
 ## Ownership
 

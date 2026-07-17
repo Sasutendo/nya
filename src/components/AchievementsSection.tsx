@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LockKeyhole, Sparkles, Trophy } from 'lucide-react'
-import { ACHIEVEMENTS, getUnlockedAchievements, type AchievementId } from '../lib/achievements'
+import { ACHIEVEMENTS, getUnlockedAchievements, resetAchievements, type AchievementId } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
 export function AchievementsSection() {
@@ -10,8 +10,9 @@ export function AchievementsSection() {
   useEffect(() => {
     const refresh = () => setUnlocked(getUnlockedAchievements())
     window.addEventListener('nya:achievement', refresh)
+    window.addEventListener('nya:achievement-reset', refresh)
     window.addEventListener('storage', refresh)
-    return () => { window.removeEventListener('nya:achievement', refresh); window.removeEventListener('storage', refresh) }
+    return () => { window.removeEventListener('nya:achievement', refresh); window.removeEventListener('nya:achievement-reset', refresh); window.removeEventListener('storage', refresh) }
   }, [])
 
   const unlockedSet = useMemo(() => new Set(unlocked), [unlocked])
@@ -21,7 +22,7 @@ export function AchievementsSection() {
     <section className="achievements-section section-shell">
       <div className="section-heading achievement-heading">
         <div><p className="eyebrow"><Trophy size={15} />{text('Secret collection', 'Geheime Sammlung')}</p><h2>{text('Corner achievements', 'Erfolge in der Lernecke')}</h2><p>{text('Every visitor has their own collection in this browser. The hints are intentionally a little mysterious.', 'Die Sammlung wird nur in deinem Browser gespeichert. Die Hinweise verraten absichtlich nicht sofort alles.')}</p></div>
-        <div className="achievement-progress"><span><strong>{unlocked.length}</strong> / {ACHIEVEMENTS.length} {text('found', 'gefunden')}</span><div><i style={{ width: `${progress}%` }} /></div></div>
+        <div className="achievement-progress"><span><strong>{unlocked.length}</strong> / {ACHIEVEMENTS.length} {text('found', 'gefunden')}</span><div><i style={{ width: `${progress}%` }} /></div><button type="button" onClick={resetAchievements}>{text('Reset my collection', 'Meine Sammlung zurücksetzen')}</button></div>
       </div>
       <div className="achievement-grid">
         {ACHIEVEMENTS.map((achievement) => {
