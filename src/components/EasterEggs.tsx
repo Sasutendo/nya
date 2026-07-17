@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { unlockAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
-type EggKind = 'nya' | 'osu' | 'code' | 'care' | 'sasu' | 'cat' | 'coffee' | 'princess' | 'eepy' | 'anime' | 'yuuki'
+type EggKind = 'nya' | 'osu' | 'code' | 'care' | 'sasu' | 'cat' | 'coffee' | 'princess' | 'eepy' | 'anime' | 'yuuki' | 'polyglot' | 'strawberry' | 'space' | 'block' | 'music' | 'pride' | 'vr'
 
 const eggs: Record<EggKind, { icon: string; label: string; labelDe: string; messages: string[]; messagesDe: string[]; particles: string[] }> = {
   nya: { icon: '♡', label: 'Secret corner note', labelDe: 'Geheime Eckennotiz', messages: ['Tiny win unlocked — keep going, Yuuki ♡', 'Nya says: one small step still counts. ✦'], messagesDe: ['Kleinen Erfolg freigeschaltet — weiter so, Yuuki ♡', 'Nya sagt: Auch ein kleiner Schritt zählt. ✦'], particles: ['♡', '✦', '+'] },
@@ -16,6 +16,13 @@ const eggs: Record<EggKind, { icon: string; label: string; labelDe: string; mess
   eepy: { icon: '☾', label: 'Eepy hours', labelDe: 'Müde Stunden', messages: ['The corner lowered its voice. A soft reset might be due.', 'Eepy mode activated: blankets strongly recommended.'], messagesDe: ['Die Ecke spricht jetzt leiser. Eine sanfte Pause wäre gut.', 'Müdemodus aktiviert: Decken werden sehr empfohlen.'], particles: ['☾', 'z', '✧'] },
   anime: { icon: '✿', label: 'Opening sequence', labelDe: 'Opening-Sequenz', messages: ['Sparkles budget increased by 200%.', 'A dramatic study montage begins now.'], messagesDe: ['Das Glitzerbudget wurde um 200 % erhöht.', 'Eine dramatische Lernmontage beginnt jetzt.'], particles: ['✿', '♡', '✦'] },
   yuuki: { icon: '♡', label: 'Name spell', labelDe: 'Namenszauber', messages: ['The corner knows its creator. Welcome home, Yuuki.', 'Yuuki mode: pink glow and tiny wins enabled.'], messagesDe: ['Die Ecke kennt ihre Erstellerin. Willkommen zuhause, Yuuki.', 'Yuuki-Modus: Rosa Leuchten und kleine Erfolge aktiviert.'], particles: ['Y', '♡', '✦'] },
+  polyglot: { icon: 'あ', label: 'Three-language heart', labelDe: 'Herz in drei Sprachen', messages: ['Deutsch, English, 日本語 — keyboard-smash is also accepted.', 'Three languages, one very cozy corner.'], messagesDe: ['Deutsch, English, 日本語 — Tastatur-Smash zählt auch.', 'Drei Sprachen, eine sehr gemütliche Lernecke.'], particles: ['DE', 'EN', 'あ'] },
+  strawberry: { icon: '🍓', label: 'Strawberry patch', labelDe: 'Erdbeerbeet', messages: ['A tiny strawberry patch grew between the notes.', 'Berry acquired. Sweet-study buff activated.'], messagesDe: ['Zwischen den Notizen ist ein kleines Erdbeerbeet gewachsen.', 'Erdbeere gefunden. Süßer Lern-Buff aktiviert.'], particles: ['🍓', '♡', '✿'] },
+  space: { icon: '✦', label: 'Quiet stargazer', labelDe: 'Leise Sternenguckerin', messages: ['The desk is quiet. The stars are not.', 'One calm thought launched into orbit.'], messagesDe: ['Der Lerntisch ist still. Die Sterne nicht.', 'Ein ruhiger Gedanke ist jetzt im Orbit.'], particles: ['✦', '⋆', '☾'] },
+  block: { icon: '▣', label: 'Cozy block builder', labelDe: 'Gemütliche Blockbauerin', messages: ['Just one more block… and suddenly it is sunrise.', 'Creative mode suits this corner.'], messagesDe: ['Nur noch ein Block … und plötzlich geht die Sonne auf.', 'Der Kreativmodus passt zu dieser Lernecke.'], particles: ['▣', '□', '✦'] },
+  music: { icon: '♫', label: 'Music loop', labelDe: 'Musikschleife', messages: ['One more song became twelve. Completely normal.', 'Soundtrack equipped for the next tiny task.'], messagesDe: ['Aus einem Lied wurden zwölf. Völlig normal.', 'Soundtrack für die nächste kleine Aufgabe ausgerüstet.'], particles: ['♫', '♪', '♡'] },
+  pride: { icon: '⚧', label: 'Bloom as yourself', labelDe: 'Blüh so, wie du bist', messages: ['Soft colours, strong heart, fully yourself.', 'This corner has room for every version of you.'], messagesDe: ['Sanfte Farben, starkes Herz, ganz du selbst.', 'In dieser Lernecke ist Platz für jede Seite von dir.'], particles: ['♡', '⚧', '✦'] },
+  vr: { icon: '◇', label: 'Portal hopping', labelDe: 'Portalhüpfen', messages: ['Portal open: cozy world selected.', 'Social battery equipped. VR adventure pending.'], messagesDe: ['Portal offen: gemütliche Welt ausgewählt.', 'Sozialer Akku ausgerüstet. VR-Abenteuer wartet.'], particles: ['◇', '◈', '✦'] },
 }
 
 const triggers = Object.keys(eggs) as EggKind[]

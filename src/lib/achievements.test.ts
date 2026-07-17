@@ -24,6 +24,10 @@ describe('visitor achievements and language defaults', () => {
   it('maps personal easter eggs to achievements', () => {
     expect(achievementForEgg('osu')).toBe('rhythm_combo')
     expect(achievementForEgg('coffee')).toBe('coffee_break')
+    expect(achievementForEgg('strawberry')).toBe('strawberry_patch')
+    expect(achievementForEgg('space')).toBe('star_gazer')
+    expect(achievementForEgg('pride')).toBe('pride_bloom')
+    expect(achievementForEgg('vr')).toBe('vr_portal')
   })
 
   it('does not award achievements when an effect is only being shown', () => {

@@ -29,24 +29,33 @@ Passwords, private email addresses and deployment secrets are not stored in this
 
 Spoilers ahead — this is the complete list for testing.
 
-| Secret | How to find it | Result |
+The **tiny charm shelf in the footer works on both phones and computers**. Each charm activates with one click, making it the reliable testing route. Several secrets also have a more hidden alternate trigger elsewhere on the site.
+
+| Secret | Reliable trigger | Alternate discovery |
 | --- | --- | --- |
-| Welcome, wanderer | Click the floating heart by the homepage preview | Unlocks the welcome achievement |
-| Nya whisper | Click the small header profile five times | Adds a pink Yuuki glow and unlocks the achievement |
-| Perfect combo | Click the `100× combo` sticker | Starts rhythm rings and unlocks the combo achievement |
-| Code & care | Click the footer copyright line three times | Reveals the coding grid and unlocks the achievement |
-| Care heart | Click the little pink nursing cross near the preview | Adds the care glow and unlocks the achievement |
-| Moonlit path | Click a page ribbon three times | Casts the moonlit study effect and unlocks the achievement |
-| Study cat | Click the tiny cat in the lower corner | Sends paws across the page and unlocks the achievement |
-| Warm checkpoint | Shuffle the homepage sticky notes three times | Calls for coffee and unlocks the achievement |
-| Desk curator | Shuffle the homepage sticky notes five times | Unlocks the note-curator achievement |
-| Dark dream | Switch the website into dark mode | Unlocks the dark-theme achievement |
-| A look back | Open a published project reflection from the learning journey | Unlocks the reflection achievement |
-| End of the deck | Reach the final slide of a presentation | Unlocks the presentation achievement |
-| Princess mode | Click the large homepage profile picture four times | Equips the crown effect and unlocks the achievement |
-| Old-school secret | Enter `↑ ↑ ↓ ↓ ← → ← → B A` outside a text field | Unlocks the classic-code achievement |
-| Opening sequence | Switch between German and English five times | Plays a sparkly visual-only surprise |
-| Eepy hours | Visit between midnight and 5:59 AM in Yuuki’s local time | Softens the corner once per browser session |
+| Welcome, wanderer | Footer `♡` | Homepage floating heart |
+| Nya whisper | Footer `猫` | Small header profile five times |
+| Perfect combo | Footer `○` | `100× combo` homepage sticker |
+| Code & care | Footer `</>` | Footer copyright line three times |
+| Care heart | Footer `+` | Pink nursing cross by the preview |
+| Moonlit path | Footer `☾` | Any page ribbon three times on larger screens |
+| Study cat | Footer `ฅ` | Tiny cat in the lower corner |
+| Warm checkpoint | Footer `☕` | Shuffle the homepage notes three times |
+| Desk curator | Footer `✎` | Shuffle the homepage notes five times |
+| Princess mode | Footer `♛` | Large homepage profile picture four times |
+| Three-language heart | Footer `あ` | Celebrates German, English and Japanese |
+| Strawberry patch | Footer `🍓` | A small tribute to Yuuki’s favourite berry |
+| Quiet stargazer | Footer `✦` | Space, quiet places and late-night thoughts |
+| Cozy block builder | Footer `▣` | Creative block-world energy |
+| Always one more song | Footer `♫` | Adds a tiny soundtrack effect |
+| Bloom as yourself | Footer `⚧` | A soft blue, pink and white pride glow |
+| Portal hopping | Footer `◇` | Opens a cozy social-VR-style portal |
+| Opening sequence | Footer `✿` | Switch German and English five times |
+| Dark dream | Switch into dark mode | — |
+| A look back | Open a published project reflection | — |
+| End of the deck | Reach the final slide of a presentation | — |
+| Old-school secret | Enter `↑ ↑ ↓ ↓ ← → ← → B A` outside a text field | — |
+| Eepy hours | Visit between midnight and 5:59 AM in Yuuki’s local time | Runs once per browser session |
 
 Achievements unlock only once per browser collection. Use **Reset my collection** above the achievement cards whenever another clean test run is needed. The footer **N is decorative** and does not trigger anything.
 

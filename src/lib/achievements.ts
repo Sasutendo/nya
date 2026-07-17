@@ -2,6 +2,8 @@ export type AchievementId =
   | 'first_visit' | 'desk_curator' | 'nya_whisper' | 'rhythm_combo' | 'code_care'
   | 'care_heart' | 'moonlit_path' | 'study_cat' | 'coffee_break' | 'dark_dream'
   | 'tiny_reflection' | 'focus_round' | 'princess_mode' | 'classic_code'
+  | 'polyglot_heart' | 'strawberry_patch' | 'star_gazer' | 'block_builder'
+  | 'music_loop' | 'pride_bloom' | 'vr_portal'
 
 export interface AchievementDefinition {
   id: AchievementId
@@ -27,10 +29,17 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
   { id: 'focus_round', icon: '◷', title: 'End of the deck', hint: 'Stay with a presentation until its final slide.', titleDe: 'Ende der Präsentation', hintDe: 'Bleib bei einer Präsentation bis zur letzten Folie.' },
   { id: 'princess_mode', icon: '♛', title: 'Do not wake the princess', hint: 'The larger profile picture knows who wears the crown.', titleDe: 'Weck die Prinzessin nicht', hintDe: 'Das große Profilbild weiß, wem die Krone gehört.' },
   { id: 'classic_code', icon: '↑', title: 'Old-school secret', hint: 'A famous sequence begins up, up, down, down…', titleDe: 'Oldschool-Geheimnis', hintDe: 'Eine berühmte Folge beginnt hoch, hoch, runter, runter …' },
+  { id: 'polyglot_heart', icon: 'あ', title: 'Three-language heart', hint: 'DE, EN and 日本語 all fit in this corner.', titleDe: 'Herz in drei Sprachen', hintDe: 'DE, EN und 日本語 passen alle in diese Lernecke.' },
+  { id: 'strawberry_patch', icon: '🍓', title: 'Strawberry patch', hint: 'One tiny berry is hiding among the footer charms.', titleDe: 'Erdbeerbeet', hintDe: 'Zwischen den Anhängern unten versteckt sich eine kleine Erdbeere.' },
+  { id: 'star_gazer', icon: '✦', title: 'Quiet stargazer', hint: 'Find a little star for calm late-night thoughts.', titleDe: 'Leise Sternenguckerin', hintDe: 'Finde einen kleinen Stern für ruhige Gedanken spät in der Nacht.' },
+  { id: 'block_builder', icon: '▣', title: 'Cozy block builder', hint: 'A square charm remembers creative survival worlds.', titleDe: 'Gemütliche Blockbauerin', hintDe: 'Ein eckiger Anhänger erinnert an kreative Blockwelten.' },
+  { id: 'music_loop', icon: '♫', title: 'Always one more song', hint: 'The footer has its own tiny soundtrack.', titleDe: 'Noch ein Lied', hintDe: 'Unten auf der Seite wartet ein kleiner Soundtrack.' },
+  { id: 'pride_bloom', icon: '⚧', title: 'Bloom as yourself', hint: 'A soft blue, pink and white glow belongs here.', titleDe: 'Blüh so, wie du bist', hintDe: 'Ein sanftes Leuchten in Blau, Rosa und Weiß gehört hierher.' },
+  { id: 'vr_portal', icon: '◇', title: 'Portal hopping', hint: 'A diamond-shaped charm opens a social VR portal.', titleDe: 'Portalhüpferin', hintDe: 'Ein rautenförmiger Anhänger öffnet ein Social-VR-Portal.' },
 ]
 
 // Versioned so this release starts with a clean collection while the interaction system is tested.
-const STORAGE_KEY = 'nya-achievements-v2'
+const STORAGE_KEY = 'nya-achievements-v3'
 
 export function getUnlockedAchievements(): AchievementId[] {
   try {
@@ -52,6 +61,8 @@ export function achievementForEgg(kind: string): AchievementId | undefined {
   return {
     nya: 'nya_whisper', osu: 'rhythm_combo', code: 'code_care', care: 'care_heart', sasu: 'moonlit_path',
     cat: 'study_cat', coffee: 'coffee_break', princess: 'princess_mode',
+    polyglot: 'polyglot_heart', strawberry: 'strawberry_patch', space: 'star_gazer', block: 'block_builder',
+    music: 'music_loop', pride: 'pride_bloom', vr: 'vr_portal',
   }[kind] as AchievementId | undefined
 }
 

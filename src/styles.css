@@ -77,6 +77,13 @@ html[data-egg="princess"] .brand-avatar, html[data-egg="yuuki"] .brand-avatar { 
 html[data-egg="eepy"] .site-shell::before { background: linear-gradient(rgba(35,28,54,.12), rgba(35,28,54,.2)); }
 html[data-egg="anime"] .site-shell::before { background: radial-gradient(circle at 20% 20%, rgba(255,185,214,.2), transparent 20%), radial-gradient(circle at 80% 70%, rgba(202,171,232,.2), transparent 22%); }
 html[data-egg="yuuki"] .site-shell::before { background: radial-gradient(circle at 50% 35%, rgba(242,133,183,.2), transparent 40%); }
+html[data-egg="polyglot"] .site-shell::before { background: linear-gradient(120deg, rgba(48,92,156,.12), rgba(242,179,198,.18), rgba(255,255,255,.16)); }
+html[data-egg="strawberry"] .site-shell::before { background: radial-gradient(circle at 20% 25%, rgba(237,94,128,.2) 0 5px, transparent 6px), radial-gradient(circle at 75% 65%, rgba(237,94,128,.18) 0 6px, transparent 7px), radial-gradient(circle at 48% 42%, rgba(109,166,109,.12), transparent 36%); background-size: 95px 95px, 125px 125px, auto; }
+html[data-egg="space"] .site-shell::before { background: radial-gradient(circle at 15% 25%, #fff 0 1px, transparent 2px), radial-gradient(circle at 72% 38%, #f7d7ec 0 2px, transparent 3px), linear-gradient(rgba(30,25,58,.12), rgba(57,38,76,.2)); background-size: 72px 72px, 113px 113px, auto; }
+html[data-egg="block"] .site-shell::before { opacity: .45; background-image: linear-gradient(rgba(113,159,117,.2) 1px, transparent 1px), linear-gradient(90deg, rgba(113,159,117,.2) 1px, transparent 1px); background-size: 42px 42px; }
+html[data-egg="music"] .site-shell::before { content: "♫     ♪       ♫    ♪"; padding-top: 18vh; color: rgba(184,91,138,.28); font-family: Georgia, serif; font-size: clamp(2rem, 7vw, 5rem); letter-spacing: 8vw; transform: rotate(-7deg); }
+html[data-egg="pride"] .site-shell::before { background: linear-gradient(180deg, rgba(91,206,250,.16), rgba(245,169,184,.17) 35%, rgba(255,255,255,.12) 50%, rgba(245,169,184,.17) 65%, rgba(91,206,250,.16)); }
+html[data-egg="vr"] .site-shell::before { background: radial-gradient(circle at 50% 46%, transparent 0 70px, rgba(171,116,194,.28) 72px 78px, transparent 80px), radial-gradient(circle at 50% 46%, rgba(102,190,181,.15), transparent 34%); animation-name: secret-scene, rhythm-rings; }
 html[data-egg="cat"] .cute-page-decor::before { content: "ฅ     ฅ        ฅ     ฅ"; position: fixed; z-index: 901; right: 8%; bottom: 8%; width: 84%; color: rgba(180,97,132,.42); font-size: 1.7rem; letter-spacing: 12vw; white-space: nowrap; animation: paw-walk 3.8s ease-out both; }
 html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolute; top: -17px; left: 50%; color: #d388a8; font-size: 1.1rem; transform: translateX(-50%) rotate(-6deg); }
 @keyframes secret-scene { 0%, 100% { opacity: 0; } 18%, 78% { opacity: 1; } }
@@ -120,6 +127,11 @@ html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolu
 .footer-mark { width: 36px; border-radius: 12px; }
 .footer-meta { text-align: right; }
 .footer-code-trigger { padding: 0; border: 0; color: var(--ink-soft); background: transparent; font: inherit; cursor: pointer; }
+.secret-charm-dock { display: flex; align-items: center; justify-content: center; gap: 12px; width: min(calc(100% - 40px), var(--max)); margin: -17px auto 0; padding: 0 0 22px; }
+.secret-charm-dock > small { color: var(--ink-soft); font-family: "Segoe Print", ui-rounded, sans-serif; font-size: .52rem; white-space: nowrap; }
+.secret-charm-dock > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.secret-charm-dock button { display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid rgba(115,70,91,.13); border-radius: 9px; color: #805066; background: rgba(255,248,251,.48); font-size: .65rem; cursor: pointer; transition: transform .18s ease, background .18s ease; }
+.secret-charm-dock button:hover { transform: translateY(-2px) rotate(-3deg); background: rgba(255,250,252,.9); }
 
 .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 15px; color: var(--sage-dark); font-size: .72rem; font-weight: 800; letter-spacing: .105em; text-transform: uppercase; }
 .eyebrow > span { display: block; width: 26px; height: 1px; background: currentColor; }
@@ -934,6 +946,7 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 :root[data-theme="dark"] .owner-clock,
 :root[data-theme="dark"] .profile-presence { background: rgba(50,37,45,.78); }
 :root[data-theme="dark"] .site-sticker { color: #f3dce6; border-color: var(--line); background: #3c2933; }
+:root[data-theme="dark"] .secret-charm-dock button { color: #f3dce6; border-color: var(--line); background: rgba(59,41,51,.78); }
 :root[data-theme="dark"] .easter-toast { color: var(--ink); border-color: var(--line); background: rgba(57,39,49,.96); }
 :root[data-theme="dark"] .easter-toast small { color: var(--ink-soft); }
 :root[data-theme="dark"] .brand-mark,

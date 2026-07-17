@@ -6,6 +6,7 @@ import { classes } from '../lib/format'
 import { EasterEggs } from './EasterEggs'
 import { CutePageDecor } from './CutePageDecor'
 import { OwnerClock } from './OwnerClock'
+import { SecretCharmDock } from './SecretCharmDock'
 import { showEasterEgg, unlockEggAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
@@ -111,6 +112,7 @@ export function AppLayout() {
           </div>
           <button type="button" className="footer-meta footer-code-trigger" onClick={tapCopyright}>© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</button>
         </div>
+        <SecretCharmDock />
       </footer>
       <EasterEggs ownerName={settings.ownerName} />
     </div>
