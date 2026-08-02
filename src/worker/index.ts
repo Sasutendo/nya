@@ -102,6 +102,7 @@ interface WhiteboardRow {
   title: string
   background: 'plain' | 'grid' | 'lined' | 'dots'
   strokes_json: string
+  published: number
   created_at: string
   updated_at: string
 }
@@ -205,7 +206,7 @@ function mapReflection(row: ReflectionRow) {
 function mapWhiteboard(row: WhiteboardRow) {
   const stored = parseJson<Array<Record<string, unknown>>>(row.strokes_json, [])
   const pages = stored[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: stored }] : stored
-  return { id: row.id, title: row.title, pages, createdAt: row.created_at, updatedAt: row.updated_at }
+  return { id: row.id, title: row.title, pages, published: Boolean(row.published), createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -398,6 +399,11 @@ async function publicCalendar(request: Request, env: Env): Promise<Response> {
   return json({ events: (result.results || []).map(mapCalendarEvent) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
 }
 
+async function publicWhiteboards(env: Env): Promise<Response> {
+  const result = await env.DB.prepare('SELECT * FROM whiteboards WHERE published=1 ORDER BY updated_at DESC').all<WhiteboardRow>()
+  return json({ boards: (result.results || []).map(mapWhiteboard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
+}
+
 function validDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) }
 
 async function adminPlanner(env: Env): Promise<Response> {
@@ -449,7 +455,7 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
       if (!point || typeof point !== 'object') return false
       const p = point as Record<string, unknown>
       if (![p.x, p.y, p.pressure].every((number) => typeof number === 'number' && Number.isFinite(number))) return false
-      if ((p.x as number) < 0 || (p.x as number) > 1600 || (p.y as number) < 0 || (p.y as number) > 1000 || (p.pressure as number) < 0 || (p.pressure as number) > 1) return false
+      if ((p.x as number) < 0 || (p.x as number) > 1240 || (p.y as number) < 0 || (p.y as number) > 1754 || (p.pressure as number) < 0 || (p.pressure as number) > 1) return false
     }
   }
   return true
@@ -473,14 +479,15 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
   if (!validWhiteboardPages(body.pages)) return error('The whiteboard notebook is too large or contains invalid pages.', 413)
   const background = cleanText(body.pages[0].background, 20)
   const strokesJson = JSON.stringify(body.pages)
+  const published = body.published ? 1 : 0
   if (strokesJson.length > 3_000_000) return error('This board is too large. Start a fresh board or remove a few strokes.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,updated_at=? WHERE id=?').bind(title, background, strokesJson, now, id).run()
+    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,updated_at=? WHERE id=?').bind(title, background, strokesJson, published, now, id).run()
     if (!result.meta.changes) return error('This whiteboard could not be found.', 404)
   } else {
-    await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(id, title, background, strokesJson, now, now).run()
+    await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,published,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').bind(id, title, background, strokesJson, published, now, now).run()
   }
   const row = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
   return json({ board: mapWhiteboard(row!) }, existingId ? 200 : 201)
@@ -758,6 +765,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     return json({ settings: parseJson(row?.value_json || '{}', {}) })
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
+  if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
   if (request.method === 'GET' && path.startsWith('/api/media/')) return serveMedia(request, decodeURIComponent(path.slice('/api/media/'.length)), env)
   if (request.method === 'POST' && path === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && path === '/api/auth/logout') return json({ ok: true }, 200, { 'Set-Cookie': 'nya_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' })

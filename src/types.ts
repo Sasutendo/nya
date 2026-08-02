@@ -208,6 +208,7 @@ export interface WhiteboardBoard {
   id: string
   title: string
   pages: WhiteboardPageData[]
+  published: boolean
   createdAt: string
   updatedAt: string
 }

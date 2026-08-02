@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { adminApi, authApi, getPublicEvents, getPublicItems, getSettings, recordView } from './api'
+import { adminApi, authApi, getPublicEvents, getPublicItems, getPublicWhiteboards, getSettings, recordView } from './api'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -71,11 +71,13 @@ describe('zero-configuration local preview', () => {
 
   it('creates, updates and removes private local whiteboards without an API request', async () => {
     const time = new Date().toISOString()
-    const board = { id: 'board_test', title: 'Anatomy notes', pages: [{ id: 'page_test', name: 'Page 1', background: 'grid' as const, strokes: [{ id: 'stroke_test', tool: 'highlighter' as const, colour: '#f0c44f', size: 22, points: [{ x: 20, y: 30, pressure: .5 }, { x: 90, y: 30, pressure: .7 }] }] }], createdAt: time, updatedAt: time }
+    const board = { id: 'board_test', title: 'Anatomy notes', pages: [{ id: 'page_test', name: 'Page 1', background: 'grid' as const, strokes: [{ id: 'stroke_test', tool: 'highlighter' as const, colour: '#f0c44f', size: 22, points: [{ x: 20, y: 30, pressure: .5 }, { x: 90, y: 30, pressure: .7 }] }] }], published: false, createdAt: time, updatedAt: time }
     await adminApi.saveWhiteboard(board, true)
     expect((await adminApi.whiteboards()).boards[0].title).toBe('Anatomy notes')
-    await adminApi.saveWhiteboard({ ...board, title: 'Anatomy exam notes' })
+    expect(await getPublicWhiteboards()).toEqual([])
+    await adminApi.saveWhiteboard({ ...board, title: 'Anatomy exam notes', published: true })
     expect((await adminApi.whiteboards()).boards[0].title).toBe('Anatomy exam notes')
+    expect((await getPublicWhiteboards())[0].title).toBe('Anatomy exam notes')
     await adminApi.removeWhiteboard(board.id)
     expect((await adminApi.whiteboards()).boards).toEqual([])
     expect(fetch).not.toHaveBeenCalled()

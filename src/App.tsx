@@ -13,6 +13,7 @@ import type { SiteSettings } from './types'
 const ItemPage = lazy(() => import('./pages/ItemPage').then((module) => ({ default: module.ItemPage })))
 const PresentationPage = lazy(() => import('./pages/PresentationPage').then((module) => ({ default: module.PresentationPage })))
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
+const PublicNotebooksPage = lazy(() => import('./pages/PublicNotebooksPage').then((module) => ({ default: module.PublicNotebooksPage })))
 const StudioPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioPage })))
 const StudioEditorPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioEditorPage })))
 const StudioLoginPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioLoginPage })))
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="notes" element={<LibraryPage fixedType="note" />} />
           <Route path="projects" element={<LibraryPage fixedType="project" />} />
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="notebooks" element={<PublicNotebooksPage />} />
           <Route path="item/:slug" element={<ItemPage />} />
           <Route path="studio/login" element={<StudioLoginPage />} />
           <Route path="studio" element={<StudioPage />} />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Download, Eraser, FilePlus2, Grid3X3, Highlighter, LoaderCircle, Minus, MousePointer2, PenLine,
+  Download, Eraser, Eye, EyeOff, FilePlus2, Grid3X3, Highlighter, LoaderCircle, Minus, MousePointer2, PenLine,
   Plus, Redo2, RotateCcw, Save, Sparkles, TextCursorInput, Trash2, Undo2, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
@@ -10,8 +10,8 @@ import { newId } from '../../lib/format'
 import type { WhiteboardBackground, WhiteboardBoard, WhiteboardPageData, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '../../types'
 import { StudioNav, useStudioSession } from './StudioPages'
 
-const BOARD_WIDTH = 1600
-const BOARD_HEIGHT = 1000
+const BOARD_WIDTH = 1240
+const BOARD_HEIGHT = 1754
 const colours = ['#253a35', '#bd5d87', '#9164a0', '#477f91', '#5d8b6b', '#d28155', '#d54f68', '#f0c44f']
 
 function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
@@ -79,7 +79,7 @@ export function WhiteboardPage() {
       if (loaded.length) { setBoards(loaded); setActiveId(loaded[0].id); setActivePageId(loaded[0].pages[0]?.id || ''); return }
       const time = new Date().toISOString()
       const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', strokes: [] }
-      const starter: WhiteboardBoard = { id: newId('board'), title: 'My first study board', pages: [firstPage], createdAt: time, updatedAt: time }
+      const starter: WhiteboardBoard = { id: newId('board'), title: 'My first study notebook', pages: [firstPage], published: false, createdAt: time, updatedAt: time }
       const result = await adminApi.saveWhiteboard(starter, true)
       setBoards([result.board]); setActiveId(result.board.id); setActivePageId(result.board.pages[0].id)
     }).catch((reason) => setError(reason instanceof Error ? reason.message : 'The whiteboards could not be opened.')).finally(() => setLoading(false))
@@ -153,7 +153,7 @@ export function WhiteboardPage() {
   function redo() { if (page && future.length) changeStrokes(future[0], [...past, page.strokes].slice(-50), future.slice(1)) }
 
   async function addBoard() {
-    const time = new Date().toISOString(); const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', strokes: [] }; const next: WhiteboardBoard = { id: newId('board'), title: `Study board ${boards.length + 1}`, pages: [firstPage], createdAt: time, updatedAt: time }
+    const time = new Date().toISOString(); const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', strokes: [] }; const next: WhiteboardBoard = { id: newId('board'), title: `Study notebook ${boards.length + 1}`, pages: [firstPage], published: false, createdAt: time, updatedAt: time }
     try { const result = await adminApi.saveWhiteboard(next, true); setBoards((current) => [result.board, ...current]); setActiveId(result.board.id); setActivePageId(result.board.pages[0].id); setPast([]); setFuture([]) } catch (reason) { setError(reason instanceof Error ? reason.message : 'The board could not be created.') }
   }
 
@@ -211,6 +211,7 @@ export function WhiteboardPage() {
           <input value={board.title} onChange={(event) => setBoards((current) => current.map((candidate) => candidate.id === board.id ? { ...candidate, title: event.target.value } : candidate))} onBlur={() => updateBoard({ title: board.title.trim() || 'Untitled board' })} aria-label="Board title" />
           <input className="whiteboard-page-name" value={page.name} onChange={(event) => setBoards((current) => current.map((candidate) => candidate.id === board.id ? { ...candidate, pages: candidate.pages.map((item) => item.id === page.id ? { ...item, name: event.target.value } : item) } : candidate))} onBlur={() => updatePage({ name: page.name.trim() || 'Untitled page' })} aria-label="Current page name" />
           <span className={`whiteboard-save-state is-${saveState}`}>{saveState === 'saving' ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}{saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Not saved'}</span>
+          <button type="button" className={board.published ? 'publish-board-button is-published' : 'publish-board-button'} onClick={() => updateBoard({ published: !board.published })}>{board.published ? <Eye size={16} /> : <EyeOff size={16} />}{board.published ? 'Public' : 'Private'}</button>
           <button type="button" onClick={exportPng}><Download size={16} />PNG</button><button type="button" className="danger" onClick={deleteBoard}><Trash2 size={16} /></button>
         </div>
         <div className="whiteboard-pages"><div>{board.pages.map((candidate, index) => <button key={candidate.id} type="button" className={candidate.id === page.id ? 'is-active' : ''} onClick={() => { setActivePageId(candidate.id); setPast([]); setFuture([]) }}>{index + 1}<span>{candidate.name}</span></button>)}</div><button type="button" onClick={addPage}><FilePlus2 size={15} />Add page</button><button type="button" onClick={deletePage} disabled={board.pages.length === 1} aria-label="Delete current page"><Trash2 size={15} /></button></div>

@@ -13,7 +13,7 @@ Nya Yuuki’s Learning Corner brings presentations, study notes, practical proje
 - **Media support** — images, GIFs, video, audio and downloadable files
 - **Study journey** — a read-only public overview of completed work and learning topics
 - **Private study hub** — flashcards, focus sessions, skill tracking and reflections for the owner
-- **Private whiteboard notebooks** — multiple named pages, pressure-aware pen, highlighter, eraser, styled and coloured text, undo/redo, paper styles, zoom, PNG export and tablet-friendly stylus mode
+- **A4 whiteboard notebooks** — multiple named pages, pressure-aware pen, highlighter, eraser, styled and coloured text, undo/redo, paper styles, zoom, PNG export and tablet-friendly stylus mode; notebooks can optionally be published as read-only books
 - **Planning tools** — public milestones plus a private calendar, tasks and sticky notes
 - **Personal settings** — profile GIF, site copy and synchronized visitor-facing updates
 - **English and German** — a remembered language switch with natural public copy
@@ -22,7 +22,7 @@ Nya Yuuki’s Learning Corner brings presentations, study notes, practical proje
 
 ## 🔒 Public outside, private inside
 
-Published work is intentionally public and read-only. Visitors cannot add study cards, edit reflections, upload media or use the private Study Corner tools. Drafting, planning and publishing remain owner-only.
+Published work is intentionally public and read-only. Whiteboard notebooks begin private and only appear on the public notebook shelf when the owner explicitly publishes them. Visitors cannot draw on pages, add study cards, edit reflections, upload media or use the private Study Corner tools. Drafting, planning and publishing remain owner-only.
 
 Passwords, private email addresses and deployment secrets are not stored in this repository.
 

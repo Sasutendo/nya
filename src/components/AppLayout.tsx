@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, Presentation, Sun, X } from 'lucide-react'
+import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Sun, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
 import { classes } from '../lib/format'
@@ -62,6 +62,7 @@ export function AppLayout() {
     { to: '/notes', label: text('Notes', 'Notizen'), icon: FileText },
     { to: '/projects', label: text('Projects', 'Projekte'), icon: FolderKanban },
     { to: '/calendar', label: text('Calendar', 'Kalender'), icon: CalendarDays },
+    { to: '/notebooks', label: text('Notebooks', 'Lernhefte'), icon: NotebookTabs },
   ]
 
   useEffect(() => setMenuOpen(false), [location.pathname])

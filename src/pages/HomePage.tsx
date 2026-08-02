@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, NotebookTabs, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
 import { OwnerClock } from '../components/OwnerClock'
@@ -157,6 +157,11 @@ export function HomePage() {
         <Link to="/calendar" className="quick-link quick-calendar">
           <span><CalendarDays size={21} /></span>
           <div><strong>{text('Calendar', 'Kalender')}</strong><small>{text('Milestones and upcoming dates', 'Meilensteine und kommende Termine')}</small></div>
+          <ArrowRight size={18} />
+        </Link>
+        <Link to="/notebooks" className="quick-link quick-notebooks">
+          <span><NotebookTabs size={21} /></span>
+          <div><strong>{text('Notebooks', 'Lernhefte')}</strong><small>{text('Read published handwritten pages', 'Veröffentlichte handschriftliche Seiten')}</small></div>
           <ArrowRight size={18} />
         </Link>
       </section>

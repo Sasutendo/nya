@@ -202,6 +202,12 @@ export async function getPublicItems(filters: ItemFilters = {}): Promise<Content
   }
 }
 
+export async function getPublicWhiteboards(): Promise<WhiteboardBoard[]> {
+  if (LOCAL_DEMO) return readLocalWhiteboards().filter((board) => board.published)
+  try { return (await request<{ boards: WhiteboardBoard[] }>('/api/public/whiteboards')).boards }
+  catch { return [] }
+}
+
 export async function getPublicItem(slug: string): Promise<ContentItem | null> {
   if (LOCAL_DEMO) return readLocalItems().filter((item) => item.status === 'published').find((item) => item.slug === slug) || null
   try {
