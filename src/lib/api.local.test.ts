@@ -71,7 +71,7 @@ describe('zero-configuration local preview', () => {
 
   it('creates, updates and removes private local whiteboards without an API request', async () => {
     const time = new Date().toISOString()
-    const board = { id: 'board_test', title: 'Anatomy notes', background: 'grid' as const, strokes: [{ id: 'stroke_test', tool: 'highlighter' as const, colour: '#f0c44f', size: 22, points: [{ x: 20, y: 30, pressure: .5 }, { x: 90, y: 30, pressure: .7 }] }], createdAt: time, updatedAt: time }
+    const board = { id: 'board_test', title: 'Anatomy notes', pages: [{ id: 'page_test', name: 'Page 1', background: 'grid' as const, strokes: [{ id: 'stroke_test', tool: 'highlighter' as const, colour: '#f0c44f', size: 22, points: [{ x: 20, y: 30, pressure: .5 }, { x: 90, y: 30, pressure: .7 }] }] }], createdAt: time, updatedAt: time }
     await adminApi.saveWhiteboard(board, true)
     expect((await adminApi.whiteboards()).boards[0].title).toBe('Anatomy notes')
     await adminApi.saveWhiteboard({ ...board, title: 'Anatomy exam notes' })

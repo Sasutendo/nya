@@ -203,7 +203,9 @@ function mapReflection(row: ReflectionRow) {
 }
 
 function mapWhiteboard(row: WhiteboardRow) {
-  return { id: row.id, title: row.title, background: row.background, strokes: parseJson<unknown[]>(row.strokes_json, []), createdAt: row.created_at, updatedAt: row.updated_at }
+  const stored = parseJson<Array<Record<string, unknown>>>(row.strokes_json, [])
+  const pages = stored[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: stored }] : stored
+  return { id: row.id, title: row.title, pages, createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -435,9 +437,12 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
   for (const stroke of value) {
     if (!stroke || typeof stroke !== 'object') return false
     const candidate = stroke as Record<string, unknown>
-    if (!['pen', 'highlighter', 'eraser'].includes(String(candidate.tool))) return false
+    if (!['pen', 'highlighter', 'eraser', 'text'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < 1 || candidate.size > 100) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
+    if (candidate.tool === 'text') {
+      if (!cleanText(candidate.text, 4000) || !['handwritten', 'sans', 'serif', 'mono'].includes(String(candidate.fontFamily)) || typeof candidate.fontSize !== 'number' || candidate.fontSize < 10 || candidate.fontSize > 160) return false
+    }
     points += candidate.points.length
     if (points > 150_000) return false
     for (const point of candidate.points) {
@@ -450,14 +455,24 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
   return true
 }
 
+function validWhiteboardPages(value: unknown): value is Array<Record<string, unknown>> {
+  if (!Array.isArray(value) || !value.length || value.length > 100) return false
+  return value.every((page) => {
+    if (!page || typeof page !== 'object') return false
+    const candidate = page as Record<string, unknown>
+    return Boolean(cleanText(candidate.id, 100) && cleanText(candidate.name, 100))
+      && ['plain', 'grid', 'lined', 'dots'].includes(String(candidate.background))
+      && validWhiteboardStrokes(candidate.strokes)
+  })
+}
+
 async function saveWhiteboard(request: Request, env: Env, existingId?: string): Promise<Response> {
   const body = await parseBody(request)
   if (!body) return error('The whiteboard is not valid JSON.')
   const title = cleanText(body.title, 160) || 'Untitled board'
-  const background = cleanText(body.background, 20)
-  if (!['plain', 'grid', 'lined', 'dots'].includes(background)) return error('Choose a valid whiteboard background.')
-  if (!validWhiteboardStrokes(body.strokes)) return error('The whiteboard drawing is too large or contains invalid strokes.', 413)
-  const strokesJson = JSON.stringify(body.strokes)
+  if (!validWhiteboardPages(body.pages)) return error('The whiteboard notebook is too large or contains invalid pages.', 413)
+  const background = cleanText(body.pages[0].background, 20)
+  const strokesJson = JSON.stringify(body.pages)
   if (strokesJson.length > 3_000_000) return error('This board is too large. Start a fresh board or remove a few strokes.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()

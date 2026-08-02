@@ -448,6 +448,15 @@ html[data-egg="princess"] .corner-cat::before { content: "♛"; position: absolu
 
 .feedback-state { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 260px; color: var(--ink-soft); font-size: .86rem; }
 .route-loading { display: grid; min-height: 65vh; place-items: center; color: var(--ink-soft); font-size: .82rem; }
+.app-crash-screen { display: grid; place-items: center; min-height: 100vh; padding: 25px; background: radial-gradient(circle at 50% 20%, #f8dbe6, transparent 36%), var(--paper); }
+.app-crash-screen > div { width: min(100%, 560px); padding: 35px; border: 1px solid var(--line); border-radius: 24px; background: rgba(255,251,252,.88); box-shadow: var(--shadow-lg); text-align: center; }
+.app-crash-screen > div > span { display: grid; place-items: center; width: 54px; aspect-ratio: 1; margin: 0 auto 14px; border-radius: 17px; color: #fff; background: var(--sage-dark); font-size: 1.5rem; }
+.app-crash-screen h1 { margin: 5px 0 12px; font-family: Georgia, serif; font-size: clamp(2rem, 7vw, 3.4rem); font-weight: 500; }
+.app-crash-screen p { color: var(--ink-soft); line-height: 1.65; }
+.app-crash-screen > div > p:first-of-type { margin: 0; color: var(--sage-dark); font-size: .66rem; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.app-crash-screen button { min-height: 44px; margin-top: 10px; padding: 0 17px; border: 0; border-radius: 12px; color: #fff; background: var(--sage-dark); font-weight: 800; cursor: pointer; }
+.app-crash-screen details { margin-top: 18px; color: var(--ink-soft); font-size: .62rem; }
+.app-crash-screen code { display: block; overflow-wrap: anywhere; margin-top: 8px; padding: 10px; border-radius: 8px; background: var(--paper-deep); text-align: left; }
 .empty-state { display: grid; justify-items: center; min-height: 300px; place-content: center; padding: 50px 20px; border: 1px dashed rgba(24,49,44,.22); border-radius: var(--radius); text-align: center; }
 .empty-icon { display: grid; place-items: center; width: 45px; aspect-ratio: 1; border-radius: 14px; color: var(--paper); background: var(--sage-dark); font-weight: 800; }
 .empty-state h2 { margin: 17px 0 8px; font-family: Georgia, serif; font-size: 2rem; font-weight: 500; }
@@ -933,10 +942,17 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .whiteboard-workspace { min-width: 0; overflow: hidden; }
 .whiteboard-topbar { display: flex; align-items: center; gap: 8px; min-height: 58px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
 .whiteboard-topbar > input { min-width: 150px; flex: 1; border: 0; padding: 8px; font-family: Georgia, serif; font-size: 1.05rem; background: transparent; }
+.whiteboard-topbar > input.whiteboard-page-name { max-width: 170px; color: var(--ink-soft); font-family: inherit; font-size: .68rem; }
 .whiteboard-topbar > button { display: inline-flex; align-items: center; gap: 5px; min-height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--white); font-size: .6rem; font-weight: 800; cursor: pointer; }
 .whiteboard-topbar > button.danger { color: #a14c62; }
 .whiteboard-save-state { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: .55rem; white-space: nowrap; }
 .whiteboard-save-state.is-unsaved { color: #ad5267; }
+.whiteboard-pages { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 7px 12px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.28); }
+.whiteboard-pages > div { display: flex; gap: 5px; flex: 1; overflow-x: auto; }
+.whiteboard-pages button { display: inline-flex; align-items: center; gap: 5px; min-height: 31px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-soft); background: rgba(255,255,255,.5); font-size: .56rem; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.whiteboard-pages button.is-active { color: #fff; border-color: transparent; background: var(--sage-dark); }
+.whiteboard-pages button:disabled { opacity: .35; cursor: not-allowed; }
+.whiteboard-pages button span { max-width: 95px; overflow: hidden; text-overflow: ellipsis; }
 .whiteboard-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: rgba(247,234,240,.55); }
 .tool-group { display: flex; gap: 4px; }
 .tool-group button, .zoom-control button { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink-soft); background: rgba(255,255,255,.55); cursor: pointer; }
@@ -949,6 +965,8 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .stroke-size { display: flex; align-items: center; gap: 4px; color: var(--ink-soft); }
 .stroke-size input { width: 90px; accent-color: var(--sage-dark); }
 .whiteboard-toolbar select { min-height: 34px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; font-size: .58rem; }
+.font-size-control { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: .55rem; font-weight: 750; }
+.font-size-control input { width: 58px; min-height: 34px; padding: 0 7px; border: 1px solid var(--line); border-radius: 9px; }
 .stylus-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink-soft); background: rgba(255,255,255,.5); font-size: .56rem; font-weight: 750; }
 .stylus-toggle input { accent-color: var(--sage-dark); }
 .zoom-control { display: flex; align-items: center; gap: 5px; margin-left: auto; }
@@ -1125,6 +1143,8 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 :root[data-theme="dark"] .stylus-toggle,
 :root[data-theme="dark"] .colour-palette { background: rgba(255,255,255,.04); }
 :root[data-theme="dark"] .whiteboard-toolbar { background: rgba(28,20,25,.45); }
+:root[data-theme="dark"] .whiteboard-pages { background: rgba(28,20,25,.26); }
+:root[data-theme="dark"] .whiteboard-pages button { background: rgba(255,255,255,.04); }
 :root[data-theme="dark"] .whiteboard-scroll { background: #1a1418; }
 
 @media (max-width: 1050px) {
