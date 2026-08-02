@@ -13,6 +13,7 @@ Nya Yuuki’s Learning Corner brings presentations, study notes, practical proje
 - **Media support** — images, GIFs, video, audio and downloadable files
 - **Study journey** — a read-only public overview of completed work and learning topics
 - **Private study hub** — flashcards, focus sessions, skill tracking and reflections for the owner
+- **Private whiteboard** — pressure-aware pen, highlighter, eraser, undo/redo, paper styles, zoom, PNG export and tablet-friendly stylus mode
 - **Planning tools** — public milestones plus a private calendar, tasks and sticky notes
 - **Personal settings** — profile GIF, site copy and synchronized visitor-facing updates
 - **English and German** — a remembered language switch with natural public copy
@@ -29,35 +30,35 @@ Passwords, private email addresses and deployment secrets are not stored in this
 
 Spoilers ahead — this is the complete list for testing.
 
-The **tiny charm shelf in the footer works on both phones and computers**. Each charm activates with one click, making it the reliable testing route. Several secrets also have a more hidden alternate trigger elsewhere on the site.
+The old footer achievement-symbol shelf was removed. Secrets are scattered through real page details again and work on both touchscreens and computers.
 
-| Secret | Reliable trigger | Alternate discovery |
-| --- | --- | --- |
-| Welcome, wanderer | Footer `♡` | Homepage floating heart |
-| Nya whisper | Footer `猫` | Small header profile five times |
-| Perfect combo | Footer `○` | `100× combo` homepage sticker |
-| Code & care | Footer `</>` | Footer copyright line three times |
-| Care heart | Footer `+` | Pink nursing cross by the preview |
-| Moonlit path | Footer `☾` | Any page ribbon three times on larger screens |
-| Study cat | Footer `ฅ` | Tiny cat in the lower corner |
-| Warm checkpoint | Footer `☕` | Shuffle the homepage notes three times |
-| Desk curator | Footer `✎` | Shuffle the homepage notes five times |
-| Princess mode | Footer `♛` | Large homepage profile picture four times |
-| Three-language heart | Footer `あ` | Celebrates German, English and Japanese |
-| Strawberry patch | Footer `🍓` | A small tribute to Yuuki’s favourite berry |
-| Quiet stargazer | Footer `✦` | Space, quiet places and late-night thoughts |
-| Cozy block builder | Footer `▣` | Creative block-world energy |
-| Always one more song | Footer `♫` | Adds a tiny soundtrack effect |
-| Bloom as yourself | Footer `⚧` | A soft blue, pink and white pride glow |
-| Portal hopping | Footer `◇` | Opens a cozy social-VR-style portal |
-| Opening sequence | Footer `✿` | Switch German and English five times |
-| Dark dream | Switch into dark mode | — |
-| A look back | Open a published project reflection | — |
-| End of the deck | Reach the final slide of a presentation | — |
-| Old-school secret | Enter `↑ ↑ ↓ ↓ ← → ← → B A` outside a text field | — |
-| Eepy hours | Visit between midnight and 5:59 AM in Yuuki’s local time | Runs once per browser session |
+| Secret | How to find it |
+| --- | --- |
+| Welcome, wanderer | Tap the floating homepage heart |
+| Nya whisper | Tap the small header profile five times |
+| Perfect combo | Tap the `100× combo` homepage sticker |
+| Code & care | Tap the footer copyright line three times |
+| Care heart | Tap the pink nursing cross beside the preview |
+| Moonlit path | Tap a page ribbon three times |
+| Study cat | Tap the tiny cat in the lower corner |
+| Warm checkpoint | Shuffle the homepage notes three times |
+| Desk curator | Shuffle the homepage notes five times |
+| Strawberry patch | Shuffle the homepage notes seven times |
+| Cozy block builder | Shuffle the homepage notes nine times |
+| Princess mode | Tap the large homepage profile picture four times |
+| Three-language heart | Switch the site language three times |
+| Opening sequence | Switch the site language five times |
+| Quiet stargazer | Tap the header clock three times |
+| Always one more song | Tap the site title in the footer three times |
+| Bloom as yourself | Tap the small green training-status dot |
+| Portal hopping | Tap the homepage profile text three times |
+| Dark dream | Switch into dark mode |
+| A look back | Open a published project reflection |
+| End of the deck | Reach the final slide of a presentation |
+| Old-school secret | Enter `↑ ↑ ↓ ↓ ← → ← → B A` outside a text field |
+| Eepy hours | Visit between midnight and 5:59 AM in Yuuki’s local time; it runs once per session |
 
-Achievements unlock only once per browser collection. Use **Reset my collection** above the achievement cards whenever another clean test run is needed. The footer **N is decorative** and does not trigger anything.
+Achievements unlock only once per browser collection. The complete achievements section stays hidden until the first genuine secret is found. Use **Reset my collection** above the cards whenever another clean test run is needed; after resetting, the section disappears again. The footer **N is decorative** and does not trigger anything.
 
 ## ♡ Project direction
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Clock3 } from 'lucide-react'
 import { useLanguage } from '../lib/i18n'
 
-export function OwnerClock({ detailed = false }: { detailed?: boolean }) {
+export function OwnerClock({ detailed = false, onClick }: { detailed?: boolean; onClick?: () => void }) {
   const { language, text } = useLanguage()
   const [now, setNow] = useState(() => new Date())
 
@@ -20,9 +20,9 @@ export function OwnerClock({ detailed = false }: { detailed?: boolean }) {
   }).format(now), [language, now])
 
   return (
-    <div className={`owner-clock${detailed ? ' is-detailed' : ''}`} aria-label={`${text("Owner's local time", 'Lokale Zeit der Ownerin')}: ${time}`}>
+    <button type="button" className={`owner-clock${detailed ? ' is-detailed' : ''}`} aria-label={`${text("Owner's local time", 'Lokale Zeit der Ownerin')}: ${time}`} onClick={onClick}>
       <span><Clock3 size={15} /></span>
       <div><strong>{time}</strong>{detailed && <small>{date}</small>}</div>
-    </div>
+    </button>
   )
 }

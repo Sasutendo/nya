@@ -181,3 +181,24 @@ export interface StudyHubData {
   skills: NursingSkill[]
   reflections: StudyReflection[]
 }
+
+export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser'
+export type WhiteboardBackground = 'plain' | 'grid' | 'lined' | 'dots'
+
+export interface WhiteboardPoint { x: number; y: number; pressure: number }
+export interface WhiteboardStroke {
+  id: string
+  tool: WhiteboardTool
+  colour: string
+  size: number
+  points: WhiteboardPoint[]
+}
+
+export interface WhiteboardBoard {
+  id: string
+  title: string
+  background: WhiteboardBackground
+  strokes: WhiteboardStroke[]
+  createdAt: string
+  updatedAt: string
+}

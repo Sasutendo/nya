@@ -18,6 +18,8 @@ export function AchievementsSection() {
   const unlockedSet = useMemo(() => new Set(unlocked), [unlocked])
   const progress = Math.round((unlocked.length / ACHIEVEMENTS.length) * 100)
 
+  if (!unlocked.length) return null
+
   return (
     <section className="achievements-section section-shell">
       <div className="section-heading achievement-heading">

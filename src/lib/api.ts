@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
 import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
 import { DEMO_NURSING_SKILLS, DEMO_STUDY_CARDS, DEMO_STUDY_REFLECTIONS } from './demo-study'
-import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection } from '../types'
+import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
 const LOCAL_SETTINGS_KEY = 'nya-local-settings-v1'
@@ -14,6 +14,7 @@ const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
 const LOCAL_STUDY_CARDS_KEY = 'nya-local-study-cards-v1'
 const LOCAL_NURSING_SKILLS_KEY = 'nya-local-nursing-skills-v1'
 const LOCAL_REFLECTIONS_KEY = 'nya-local-reflections-v1'
+const LOCAL_WHITEBOARDS_KEY = 'nya-local-whiteboards-v1'
 const LOCAL_VIEW_PREFIX = 'nya-local-viewed-v1:'
 const SETTINGS_CHANNEL = 'nya-settings-sync-v1'
 const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true'
@@ -151,6 +152,7 @@ const readLocalTasks = () => readLocalCollection(LOCAL_TASKS_KEY, DEMO_TASKS)
 const readLocalStudyCards = () => readLocalCollection(LOCAL_STUDY_CARDS_KEY, DEMO_STUDY_CARDS)
 const readLocalNursingSkills = () => readLocalCollection(LOCAL_NURSING_SKILLS_KEY, DEMO_NURSING_SKILLS)
 const readLocalReflections = () => readLocalCollection(LOCAL_REFLECTIONS_KEY, DEMO_STUDY_REFLECTIONS)
+const readLocalWhiteboards = () => readLocalCollection<WhiteboardBoard>(LOCAL_WHITEBOARDS_KEY, [])
 
 function localFileAsset(file: File): Promise<MediaAsset> {
   if (file.size > 2.5 * 1024 * 1024) {
@@ -487,6 +489,24 @@ export const adminApi = {
   removeReflection: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_REFLECTIONS_KEY, readLocalReflections().filter((reflection) => reflection.id !== id)); return { ok: true } }
     return request<{ ok: true }>(`/api/admin/reflections/${id}`, { method: 'DELETE' })
+  },
+  whiteboards: async (): Promise<{ boards: WhiteboardBoard[] }> => {
+    if (LOCAL_DEMO) return { boards: readLocalWhiteboards() }
+    return request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
+  },
+  saveWhiteboard: async (board: WhiteboardBoard, create = false): Promise<{ board: WhiteboardBoard }> => {
+    if (LOCAL_DEMO) {
+      const boards = readLocalWhiteboards()
+      const exists = boards.some((candidate) => candidate.id === board.id)
+      const saved = { ...board, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_WHITEBOARDS_KEY, exists ? boards.map((candidate) => candidate.id === board.id ? saved : candidate) : [saved, ...boards])
+      return { board: saved }
+    }
+    return request<{ board: WhiteboardBoard }>(`/api/admin/whiteboards${create ? '' : `/${board.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(board) })
+  },
+  removeWhiteboard: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_WHITEBOARDS_KEY, readLocalWhiteboards().filter((board) => board.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/whiteboards/${id}`, { method: 'DELETE' })
   },
   upload: async (file: File): Promise<{ asset: MediaAsset }> => {
     if (LOCAL_DEMO) return { asset: await localFileAsset(file) }

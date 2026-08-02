@@ -22,6 +22,7 @@ export function HomePage() {
   const [noteCycle, setNoteCycle] = useState(() => Math.floor(Math.random() * 16))
   const profileTaps = useRef(0)
   const shuffleTaps = useRef(0)
+  const profileCopyTaps = useRef(0)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -76,6 +77,13 @@ export function HomePage() {
       showEasterEgg('coffee')
     }
     if (shuffleTaps.current === 5) unlockAchievement('desk_curator')
+    if (shuffleTaps.current === 7) { unlockEggAchievement('strawberry'); showEasterEgg('strawberry') }
+    if (shuffleTaps.current === 9) { unlockEggAchievement('block'); showEasterEgg('block') }
+  }
+
+  function tapProfileCopy() {
+    profileCopyTaps.current += 1
+    if (profileCopyTaps.current === 3) { unlockEggAchievement('vr'); showEasterEgg('vr') }
   }
 
   return (
@@ -97,11 +105,11 @@ export function HomePage() {
           </form>
           <div className="profile-presence">
             <button type="button" className="profile-avatar-wrap profile-egg-trigger" onClick={tapProfile} aria-label={text('Yuuki’s profile picture', 'Yuukis Profilbild')}><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></button>
-            <div className="profile-presence-copy"><small>{text('Currently learning with', 'Lernportfolio von')}</small><strong>{settings.ownerName}</strong><span>{text('Nursing training journey in progress', 'Auf dem Weg zur Pflegefachfrau')}</span></div>
+            <button type="button" className="profile-presence-copy profile-copy-trigger" onClick={tapProfileCopy}><small>{text('Currently learning with', 'Lernportfolio von')}</small><strong>{settings.ownerName}</strong><span>{text('Nursing training journey in progress', 'Auf dem Weg zur Pflegefachfrau')}</span></button>
             <OwnerClock detailed />
           </div>
           <div className="hero-note">
-            <span className="status-dot" />
+            <button type="button" className="status-dot status-egg-trigger" onClick={() => { unlockEggAchievement('pride'); showEasterEgg('pride') }} aria-label={text('Current training status', 'Aktueller Ausbildungsstatus')} />
             <span>{displayTraining}</span>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, ArrowRight, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronUp, Copy, FileText, FolderKanban, Image,
-  LayoutDashboard, LoaderCircle, LockKeyhole, LogOut, MonitorPlay, Paperclip, Plus, Presentation,
+  LayoutDashboard, LoaderCircle, LockKeyhole, LogOut, MonitorPlay, Paintbrush, Paperclip, Plus, Presentation,
   Save, Settings, Trash2, Upload, Video, X,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -41,6 +41,7 @@ export function StudioNav() {
       <Link to="/studio"><LayoutDashboard size={17} />{text('Dashboard', 'Übersicht')}</Link>
       <Link to="/studio/planner"><CalendarDays size={17} />{text('Planner', 'Planer')}</Link>
       <Link to="/studio/study-hub"><BrainCircuit size={17} />{text('Study hub', 'Lernbereich')}</Link>
+      <Link to="/studio/whiteboard"><Paintbrush size={17} />{text('Whiteboard', 'Whiteboard')}</Link>
       <Link to="/studio/settings"><Settings size={17} />{text('Site settings', 'Seiteneinstellungen')}</Link>
       <button type="button" onClick={logout}><LogOut size={17} />{text('Sign out', 'Abmelden')}</button>
     </nav>
@@ -169,6 +170,13 @@ export function StudioPage() {
         <div><p className="eyebrow">Study toolkit</p><h2>Flashcards, focus and nursing skills</h2><small>Practise active recall, track clinical skills and save gentle daily reflections.</small></div>
         <span className="planner-banner-arrow">Open study hub <ArrowRight size={18} /></span>
         <i>✦</i><i>♡</i>
+      </Link>
+
+      <Link to="/studio/whiteboard" className="studio-whiteboard-banner">
+        <span className="planner-banner-icon"><Paintbrush size={23} /></span>
+        <div><p className="eyebrow">Tablet study desk</p><h2>Write and highlight on your whiteboard</h2><small>Use your stylus for handwritten school notes, sketches and marked-up study ideas.</small></div>
+        <span className="planner-banner-arrow">Open whiteboard <ArrowRight size={18} /></span>
+        <i>✎</i><i>〰</i>
       </Link>
 
       <section className="create-section">

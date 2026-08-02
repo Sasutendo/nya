@@ -69,6 +69,18 @@ describe('zero-configuration local preview', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('creates, updates and removes private local whiteboards without an API request', async () => {
+    const time = new Date().toISOString()
+    const board = { id: 'board_test', title: 'Anatomy notes', background: 'grid' as const, strokes: [{ id: 'stroke_test', tool: 'highlighter' as const, colour: '#f0c44f', size: 22, points: [{ x: 20, y: 30, pressure: .5 }, { x: 90, y: 30, pressure: .7 }] }], createdAt: time, updatedAt: time }
+    await adminApi.saveWhiteboard(board, true)
+    expect((await adminApi.whiteboards()).boards[0].title).toBe('Anatomy notes')
+    await adminApi.saveWhiteboard({ ...board, title: 'Anatomy exam notes' })
+    expect((await adminApi.whiteboards()).boards[0].title).toBe('Anatomy exam notes')
+    await adminApi.removeWhiteboard(board.id)
+    expect((await adminApi.whiteboards()).boards).toEqual([])
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('counts one local view per item and browser session', async () => {
     const before = (await getPublicItemForTest()).viewCount
     expect(await recordView('welcome-to-my-learning-studio')).toBe(before + 1)

@@ -6,7 +6,6 @@ import { classes } from '../lib/format'
 import { EasterEggs } from './EasterEggs'
 import { CutePageDecor } from './CutePageDecor'
 import { OwnerClock } from './OwnerClock'
-import { SecretCharmDock } from './SecretCharmDock'
 import { showEasterEgg, unlockEggAchievement } from '../lib/achievements'
 import { useLanguage } from '../lib/i18n'
 
@@ -19,6 +18,8 @@ export function AppLayout() {
   const brandTaps = useRef(0)
   const footerTaps = useRef(0)
   const languageTaps = useRef(0)
+  const clockTaps = useRef(0)
+  const titleTaps = useRef(0)
 
   function tapBrand() {
     brandTaps.current += 1
@@ -39,7 +40,21 @@ export function AppLayout() {
   function changeLanguage() {
     toggleLanguage()
     languageTaps.current += 1
+    if (languageTaps.current === 3) {
+      unlockEggAchievement('polyglot')
+      showEasterEgg('polyglot')
+    }
     if (languageTaps.current === 5) showEasterEgg('anime')
+  }
+
+  function tapClock() {
+    clockTaps.current += 1
+    if (clockTaps.current === 3) { unlockEggAchievement('space'); showEasterEgg('space') }
+  }
+
+  function tapFooterTitle() {
+    titleTaps.current += 1
+    if (titleTaps.current === 3) { unlockEggAchievement('music'); showEasterEgg('music') }
   }
   const navigation = [
     { to: '/library', label: text('Library', 'Bibliothek'), icon: BookOpen },
@@ -65,7 +80,7 @@ export function AppLayout() {
           </Link>
 
           <div className="header-actions">
-            <OwnerClock />
+            <OwnerClock onClick={tapClock} />
             <button type="button" className="language-toggle" onClick={changeLanguage} aria-label={text('Switch website to German', 'Webseite auf Englisch umstellen')} title={text('Switch to German', 'Zu Englisch wechseln')}>
               <Languages size={16} /><strong>{language.toUpperCase()}</strong><span>{language === 'de' ? 'EN' : 'DE'}</span>
             </button>
@@ -108,11 +123,10 @@ export function AppLayout() {
         <div className="footer-inner">
           <div>
             <span className="footer-mark" aria-hidden="true">N</span>
-            <p><strong>{settings.siteTitle}</strong><br />{settings.footerNote}</p>
+            <p><button type="button" className="footer-title-trigger" onClick={tapFooterTitle}>{settings.siteTitle}</button><br />{settings.footerNote}</p>
           </div>
           <button type="button" className="footer-meta footer-code-trigger" onClick={tapCopyright}>© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</button>
         </div>
-        <SecretCharmDock />
       </footer>
       <EasterEggs ownerName={settings.ownerName} />
     </div>
