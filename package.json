@@ -12,8 +12,7 @@
     "cf:dev": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply nya-lernstudio-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply nya-lernstudio-db --remote",
-    "deploy": "npm run build && wrangler deploy",
-    "password:hash": "node scripts/hash-password.mjs"
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "lucide-react": "^1.24.0",
