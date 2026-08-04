@@ -2,7 +2,7 @@ interface Env {
   DB: D1Database
   ASSETS: Fetcher
   ADMIN_EMAIL: string
-  ADMIN_PASSWORD_HASH: string
+  ADMIN_PASSWORD: string
   SESSION_SECRET: string
   GITHUB_TOKEN: string
   GITHUB_OWNER: string
@@ -206,11 +206,6 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
-function fromHex(value: string): Uint8Array {
-  if (!/^[a-f0-9]+$/i.test(value) || value.length % 2) return new Uint8Array()
-  return new Uint8Array(value.match(/.{2}/g)!.map((byte) => Number.parseInt(byte, 16)))
-}
-
 async function hmac(value: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   return base64Url(new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(value))))
@@ -230,29 +225,22 @@ async function makeSession(email: string, secret: string): Promise<string> {
 }
 
 async function verifySession(request: Request, env: Env): Promise<string | null> {
+  const sessionSecret = (env.SESSION_SECRET || '').trim()
+  const ownerEmail = (env.ADMIN_EMAIL || '').trim().toLowerCase()
+  if (!sessionSecret || !ownerEmail) return null
   const cookie = request.headers.get('Cookie') || ''
   const token = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('nya_session='))?.slice(12)
   if (!token) return null
   const [payload, signature] = token.split('.')
-  if (!payload || !signature || !constantTimeEqual(signature, await hmac(payload, env.SESSION_SECRET.trim()))) return null
+  if (!payload || !signature || !constantTimeEqual(signature, await hmac(payload, sessionSecret))) return null
   try {
     const normal = payload.replace(/-/g, '+').replace(/_/g, '/')
     const padded = normal.padEnd(Math.ceil(normal.length / 4) * 4, '=')
     const decoded = new TextDecoder().decode(Uint8Array.from(atob(padded), (character) => character.charCodeAt(0)))
     const [email, expires] = decoded.split('|')
-    if (email !== env.ADMIN_EMAIL.trim().toLowerCase() || Number(expires) <= Math.floor(Date.now() / 1000)) return null
+    if (email !== ownerEmail || Number(expires) <= Math.floor(Date.now() / 1000)) return null
     return email
   } catch { return null }
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [iterationValue, saltHex, expectedHex] = stored.trim().split(':')
-  const iterations = Number(iterationValue)
-  if (iterations !== 100_000 || !saltHex || !expectedHex) return false
-  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromHex(saltHex), iterations }, key, expectedHex.length * 4)
-  const actual = [...new Uint8Array(bits)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-  return constantTimeEqual(actual, expectedHex.toLowerCase())
 }
 
 function isSameOrigin(request: Request): boolean {
@@ -626,15 +614,22 @@ async function login(request: Request, env: Env): Promise<Response> {
   const body = await parseBody(request)
   const email = cleanText(body?.email, 320).toLowerCase()
   const password = typeof body?.password === 'string' ? body.password : ''
-  const ownerEmail = env.ADMIN_EMAIL.trim().toLowerCase()
-  const valid = email === ownerEmail && await verifyPassword(password, env.ADMIN_PASSWORD_HASH)
+  const ownerEmail = (env.ADMIN_EMAIL || '').trim().toLowerCase()
+  const storedPassword = (env.ADMIN_PASSWORD || '').trim()
+  const sessionSecret = (env.SESSION_SECRET || '').trim()
+  const missing = [!ownerEmail && 'ADMIN_EMAIL', !storedPassword && 'ADMIN_PASSWORD', !sessionSecret && 'SESSION_SECRET'].filter(Boolean)
+  if (missing.length) {
+    console.error('Owner login configuration is missing:', missing.join(', '))
+    return error(`Owner login is missing the Cloudflare secret: ${missing.join(', ')}.`, 503)
+  }
+  const valid = email === ownerEmail && password.length >= 12 && constantTimeEqual(password, storedPassword)
   if (!valid) {
     await env.DB.prepare('INSERT INTO login_attempts (fingerprint) VALUES (?)').bind(key).run()
     return error('The email or password is incorrect.', 401)
   }
 
   await env.DB.prepare('DELETE FROM login_attempts WHERE fingerprint = ?').bind(key).run()
-  const token = await makeSession(ownerEmail, env.SESSION_SECRET.trim())
+  const token = await makeSession(ownerEmail, sessionSecret)
   return json({ authenticated: true, email: ownerEmail }, 200, {
     'Set-Cookie': `nya_session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_SECONDS}`,
   })
@@ -746,7 +741,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   const path = url.pathname
 
   if (!path.startsWith('/api/')) return env.ASSETS.fetch(request)
-  if (request.method === 'GET' && path === '/api/health') return json({ ok: true })
+  if (request.method === 'GET' && path === '/api/health') return json({ ok: true, build: 'direct-password-v2' })
   if (request.method === 'GET' && path === '/api/public/items') return publicItems(request, env)
   if (request.method === 'POST' && path.startsWith('/api/public/items/') && path.endsWith('/view')) {
     const slug = decodeURIComponent(path.slice('/api/public/items/'.length, -'/view'.length))
