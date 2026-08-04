@@ -281,31 +281,14 @@ export function watchSettings(onSettings: (settings: SiteSettings) => void): () 
     }
   }
 
-  let socket: WebSocket | null = null
-  let reconnectTimer: number | undefined
   const refresh = () => getSettings().then(deliver).catch(() => undefined)
-  const connect = () => {
-    if (stopped) return
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    socket = new WebSocket(`${protocol}//${window.location.host}/api/public/settings/live`)
-    socket.addEventListener('message', (event) => {
-      try { deliver(JSON.parse(String(event.data)) as Partial<SiteSettings>) } catch { /* Keep the last valid settings. */ }
-    })
-    socket.addEventListener('close', () => {
-      if (!stopped) reconnectTimer = window.setTimeout(connect, 1_500)
-    })
-    socket.addEventListener('error', () => socket?.close())
-  }
-  connect()
-  const pollTimer = window.setInterval(refresh, 30_000)
+  const pollTimer = window.setInterval(refresh, 15_000)
   const onVisibility = () => { if (document.visibilityState === 'visible') refresh() }
   document.addEventListener('visibilitychange', onVisibility)
   return () => {
     stopped = true
-    if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer)
     window.clearInterval(pollTimer)
     document.removeEventListener('visibilitychange', onVisibility)
-    socket?.close()
   }
 }
 

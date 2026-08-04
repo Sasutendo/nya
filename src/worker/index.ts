@@ -1,11 +1,13 @@
 interface Env {
   DB: D1Database
-  MEDIA: R2Bucket
   ASSETS: Fetcher
-  SETTINGS_SYNC: DurableObjectNamespace
   ADMIN_EMAIL: string
   ADMIN_PASSWORD_HASH: string
   SESSION_SECRET: string
+  GITHUB_TOKEN: string
+  GITHUB_OWNER: string
+  GITHUB_REPO: string
+  GITHUB_BRANCH: string
 }
 
 interface ItemRow {
@@ -107,7 +109,7 @@ interface WhiteboardRow {
   updated_at: string
 }
 
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 const SESSION_SECONDS = 7 * 24 * 60 * 60
 const encoder = new TextEncoder()
 
@@ -120,17 +122,6 @@ function json(data: unknown, status = 200, extraHeaders?: HeadersInit): Response
 
 function error(message: string, status = 400): Response {
   return json({ error: message }, status)
-}
-
-function settingsSyncStub(env: Env): DurableObjectStub {
-  return env.SETTINGS_SYNC.get(env.SETTINGS_SYNC.idFromName('public-settings'))
-}
-
-async function broadcastSettings(env: Env, settings: unknown): Promise<void> {
-  const response = await settingsSyncStub(env).fetch(new Request('https://settings-sync.internal/broadcast', {
-    method: 'POST', body: JSON.stringify(settings), headers: { 'Content-Type': 'application/json' },
-  }))
-  if (!response.ok) throw new Error('The live settings update could not be broadcast.')
 }
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -291,7 +282,7 @@ function cleanText(value: unknown, max: number): string {
 
 function safeMediaUrl(value: unknown): string {
   if (typeof value !== 'string') return ''
-  if (value.startsWith('/api/media/')) return value
+  if (value.startsWith('/uploads/') || value.startsWith('/images/')) return value.slice(0, 2000)
   try {
     const url = new URL(value)
     return ['https:', 'http:'].includes(url.protocol) ? value.slice(0, 2000) : ''
@@ -706,7 +697,7 @@ function uploadAllowed(name: string, mime: string): boolean {
 async function uploadMedia(request: Request, env: Env): Promise<Response> {
   if (!request.body) return error('Choose a file to upload.')
   const contentLength = Number(request.headers.get('Content-Length') || 0)
-  if (contentLength > MAX_UPLOAD_BYTES) return error('Files can be up to 100 MB.', 413)
+  if (contentLength > MAX_UPLOAD_BYTES) return error('GitHub uploads can be up to 20 MB. Compress larger videos or add them to the repository from your computer.', 413)
   const rawName = request.headers.get('X-File-Name') || 'upload'
   let decodedName = 'upload'
   try { decodedName = decodeURIComponent(rawName) } catch { decodedName = rawName }
@@ -715,36 +706,38 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
   if (!uploadAllowed(name, mime)) return error('This file type is blocked for security. Use a common image, video, audio, document or archive format.', 415)
 
   const date = new Date()
-  const key = `uploads/${date.getUTCFullYear()}/${String(date.getUTCMonth() + 1).padStart(2, '0')}/${crypto.randomUUID()}-${name}`
+  const key = `public/uploads/${date.getUTCFullYear()}/${String(date.getUTCMonth() + 1).padStart(2, '0')}/${crypto.randomUUID()}-${name}`
   const kind = fileKind(mime)
-  await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: mime }, customMetadata: { originalName: name, kind } })
-  const object = await env.MEDIA.head(key)
-  const asset: MediaAsset = { id: key, name, url: `/api/media/${key}`, kind, mimeType: mime, size: object?.size || contentLength }
-  return json({ asset }, 201)
-}
-
-async function serveMedia(request: Request, key: string, env: Env): Promise<Response> {
-  const object = await env.MEDIA.get(key, { range: request.headers })
-  if (!object) return error('File not found.', 404)
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('ETag', object.httpEtag)
-  headers.set('Accept-Ranges', 'bytes')
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-  headers.set('X-Content-Type-Options', 'nosniff')
-  const name = object.customMetadata?.originalName || key.split('/').pop() || 'file'
-  const kind = object.customMetadata?.kind || fileKind(headers.get('Content-Type') || '')
-  headers.set('Content-Disposition', `${['image', 'video', 'audio', 'document'].includes(kind) ? 'inline' : 'attachment'}; filename="${name.replace(/"/g, '')}"`)
-  if (object.range) {
-    const range = object.range
-    const length = 'suffix' in range ? Math.min(range.suffix, object.size) : (range.length ?? object.size - (range.offset ?? 0))
-    const offset = 'suffix' in range ? object.size - length : (range.offset ?? 0)
-    headers.set('Content-Range', `bytes ${offset}-${offset + length - 1}/${object.size}`)
-    headers.set('Content-Length', String(length))
-    return new Response(object.body, { status: 206, headers })
+  const bytes = new Uint8Array(await request.arrayBuffer())
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) return error('GitHub uploads can be up to 20 MB. Compress larger videos or add them to the repository from your computer.', 413)
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 32_768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768))
+  const repository = `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`
+  const response = await fetch(`https://api.github.com/repos/${repository}/contents/${key}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'nya-yuuki-corner',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify({
+      message: `Add ${name} from the owner studio`,
+      content: btoa(binary),
+      branch: env.GITHUB_BRANCH || 'main',
+    }),
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { message?: string }
+    console.error('GitHub upload failed', response.status, payload.message)
+    return error(response.status === 401 || response.status === 403
+      ? 'GitHub could not authorise this upload. Check the private GITHUB_TOKEN secret.'
+      : 'GitHub could not commit this file. Please try again.', 502)
   }
-  headers.set('Content-Length', String(object.size))
-  return new Response(object.body, { headers })
+  const publicPath = `/${key.slice('public/'.length)}`
+  const asset: MediaAsset = { id: key, name, url: publicPath, kind, mimeType: mime, size: bytes.byteLength }
+  return json({ asset }, 201)
 }
 
 async function router(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
@@ -759,14 +752,12 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     return recordPublicView(request, slug, env)
   }
   if (request.method === 'GET' && path.startsWith('/api/public/items/')) return publicItem(request, decodeURIComponent(path.slice('/api/public/items/'.length)), env, context)
-  if (request.method === 'GET' && path === '/api/public/settings/live') return settingsSyncStub(env).fetch(request)
   if (request.method === 'GET' && path === '/api/public/settings') {
     const row = await env.DB.prepare("SELECT value_json FROM site_settings WHERE key = 'site'").first<{ value_json: string }>()
     return json({ settings: parseJson(row?.value_json || '{}', {}) })
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
   if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
-  if (request.method === 'GET' && path.startsWith('/api/media/')) return serveMedia(request, decodeURIComponent(path.slice('/api/media/'.length)), env)
   if (request.method === 'POST' && path === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && path === '/api/auth/logout') return json({ ok: true }, 200, { 'Set-Cookie': 'nya_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' })
   if (request.method === 'GET' && path === '/api/auth/session') {
@@ -801,7 +792,6 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
         footerNote: cleanText(settings.footerNote, 180),
       }
       await env.DB.prepare("INSERT INTO site_settings (key,value_json,updated_at) VALUES ('site',?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at").bind(JSON.stringify(safe), new Date().toISOString()).run()
-      context.waitUntil(broadcastSettings(env, safe).catch((reason) => console.error('Settings sync failed', reason)))
       return json({ settings: safe })
     }
     if (request.method === 'POST' && path === '/api/admin/calendar') return saveCalendarEvent(request, env)
@@ -873,30 +863,6 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   return error('API route not found.', 404)
 }
 
-export class SettingsSyncRoom {
-  constructor(private readonly state: DurableObjectState) {}
-
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url)
-    if (url.pathname === '/broadcast' && request.method === 'POST') {
-      const payload = await request.text()
-      for (const socket of this.state.getWebSockets()) {
-        try { socket.send(payload) } catch { try { socket.close(1011, 'Update delivery failed') } catch { /* Already closed. */ } }
-      }
-      return new Response(null, { status: 204 })
-    }
-
-    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return error('A WebSocket connection is required.', 426)
-    const pair = new WebSocketPair()
-    const [client, server] = Object.values(pair)
-    this.state.acceptWebSocket(server)
-    return new Response(null, { status: 101, webSocket: client })
-  }
-
-  webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) {
-    if (message === 'ping') socket.send('pong')
-  }
-}
 
 export default {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {

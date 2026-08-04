@@ -9,26 +9,17 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  "durable_objects": {
-    "bindings": [
-      { "name": "SETTINGS_SYNC", "class_name": "SettingsSyncRoom" }
-    ]
+  "vars": {
+    "GITHUB_OWNER": "Sasutendo",
+    "GITHUB_REPO": "nya",
+    "GITHUB_BRANCH": "main"
   },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["SettingsSyncRoom"] }
-  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "nya-lernstudio-db",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "e26f488a-a49d-44df-b4f8-3f447f430b00",
       "migrations_dir": "migrations"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "MEDIA",
-      "bucket_name": "nya-lernstudio-media"
     }
   ]
 }

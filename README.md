@@ -10,12 +10,12 @@ Nya Yuuki’s Learning Corner brings presentations, study notes, practical proje
 
 - **Presentation studio** — responsive slide decks, full-screen playback and gentle text animations
 - **Learning library** — searchable presentations, notes and project reflections
-- **Media support** — images, GIFs, video, audio and downloadable files
+- **Git-backed media** — owner uploads are committed to the repository, then included automatically in Cloudflare's next deployment
 - **Study journey** — a read-only public overview of completed work and learning topics
 - **Private study hub** — flashcards, focus sessions, skill tracking and reflections for the owner
 - **A4 whiteboard notebooks** — multiple named pages, pressure-aware pen, highlighter, eraser, styled and coloured text, undo/redo, paper styles, zoom, PNG export and tablet-friendly stylus mode; notebooks can optionally be published as read-only books
 - **Planning tools** — public milestones plus a private calendar, tasks and sticky notes
-- **Personal settings** — profile GIF, site copy and synchronized visitor-facing updates
+- **Personal settings** — profile GIF and site copy saved privately through the owner studio
 - **English and German** — a remembered language switch with natural public copy
 - **Cozy themes** — responsive light and dark designs for phones and computers
 - **Little secrets** — visitor-local achievements, hidden interactions and playful visual effects
