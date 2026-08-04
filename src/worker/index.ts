@@ -234,19 +234,19 @@ async function verifySession(request: Request, env: Env): Promise<string | null>
   const token = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('nya_session='))?.slice(12)
   if (!token) return null
   const [payload, signature] = token.split('.')
-  if (!payload || !signature || !constantTimeEqual(signature, await hmac(payload, env.SESSION_SECRET))) return null
+  if (!payload || !signature || !constantTimeEqual(signature, await hmac(payload, env.SESSION_SECRET.trim()))) return null
   try {
     const normal = payload.replace(/-/g, '+').replace(/_/g, '/')
     const padded = normal.padEnd(Math.ceil(normal.length / 4) * 4, '=')
     const decoded = new TextDecoder().decode(Uint8Array.from(atob(padded), (character) => character.charCodeAt(0)))
     const [email, expires] = decoded.split('|')
-    if (email !== env.ADMIN_EMAIL || Number(expires) <= Math.floor(Date.now() / 1000)) return null
+    if (email !== env.ADMIN_EMAIL.trim().toLowerCase() || Number(expires) <= Math.floor(Date.now() / 1000)) return null
     return email
   } catch { return null }
 }
 
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [iterationValue, saltHex, expectedHex] = stored.split(':')
+  const [iterationValue, saltHex, expectedHex] = stored.trim().split(':')
   const iterations = Number(iterationValue)
   if (iterations !== 100_000 || !saltHex || !expectedHex) return false
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
@@ -626,15 +626,16 @@ async function login(request: Request, env: Env): Promise<Response> {
   const body = await parseBody(request)
   const email = cleanText(body?.email, 320).toLowerCase()
   const password = typeof body?.password === 'string' ? body.password : ''
-  const valid = email === env.ADMIN_EMAIL.toLowerCase() && await verifyPassword(password, env.ADMIN_PASSWORD_HASH)
+  const ownerEmail = env.ADMIN_EMAIL.trim().toLowerCase()
+  const valid = email === ownerEmail && await verifyPassword(password, env.ADMIN_PASSWORD_HASH)
   if (!valid) {
     await env.DB.prepare('INSERT INTO login_attempts (fingerprint) VALUES (?)').bind(key).run()
     return error('The email or password is incorrect.', 401)
   }
 
   await env.DB.prepare('DELETE FROM login_attempts WHERE fingerprint = ?').bind(key).run()
-  const token = await makeSession(env.ADMIN_EMAIL, env.SESSION_SECRET)
-  return json({ authenticated: true, email: env.ADMIN_EMAIL }, 200, {
+  const token = await makeSession(ownerEmail, env.SESSION_SECRET.trim())
+  return json({ authenticated: true, email: ownerEmail }, 200, {
     'Set-Cookie': `nya_session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_SECONDS}`,
   })
 }
