@@ -6,7 +6,9 @@ if (!password || password.length < 12) {
   process.exit(1)
 }
 
-const iterations = 210_000
+// Cloudflare Workers currently caps Web Crypto PBKDF2 at 100,000 rounds.
+// Keep the generator and the runtime verifier on the same supported value.
+const iterations = 100_000
 const salt = randomBytes(16).toString('hex')
 const hash = pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('hex')
 console.log(`${iterations}:${salt}:${hash}`)

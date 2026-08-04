@@ -248,7 +248,7 @@ async function verifySession(request: Request, env: Env): Promise<string | null>
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [iterationValue, saltHex, expectedHex] = stored.split(':')
   const iterations = Number(iterationValue)
-  if (!iterations || iterations < 100_000 || !saltHex || !expectedHex) return false
+  if (iterations !== 100_000 || !saltHex || !expectedHex) return false
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromHex(saltHex), iterations }, key, expectedHex.length * 4)
   const actual = [...new Uint8Array(bits)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
