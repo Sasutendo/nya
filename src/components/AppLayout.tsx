@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Sun, X } from 'lucide-react'
+import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Search, Sun, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
 import { classes } from '../lib/format'
@@ -81,6 +81,7 @@ export function AppLayout() {
           </Link>
 
           <div className="header-actions">
+            <Link to="/search" className="icon-button header-search-button" aria-label={text('Search website and internet', 'Website und Internet durchsuchen')}><Search size={18} /></Link>
             <OwnerClock onClick={tapClock} />
             <button type="button" className="language-toggle" onClick={changeLanguage} aria-label={text('Switch website to German', 'Webseite auf Englisch umstellen')} title={text('Switch to German', 'Zu Englisch wechseln')}>
               <Languages size={16} /><strong>{language.toUpperCase()}</strong><span>{language === 'de' ? 'EN' : 'DE'}</span>

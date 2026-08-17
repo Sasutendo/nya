@@ -48,7 +48,7 @@ export function HomePage() {
   function submitSearch(event: React.FormEvent) {
     event.preventDefault()
     const value = query.trim()
-    navigate(value ? `/library?q=${encodeURIComponent(value)}` : '/library')
+    navigate(value ? `/search?q=${encodeURIComponent(value)}&scope=site` : '/search')
   }
 
   function tapProfile() {
@@ -101,7 +101,7 @@ export function HomePage() {
               placeholder={text('Search notes, presentations and projects', 'Notizen, Präsentationen und Projekte suchen')}
               aria-label={text('Search the learning library', 'Lernbibliothek durchsuchen')}
             />
-            <button type="submit">{text('Search', 'Suchen')}</button>
+            <button type="submit">{text('My notes', 'Meine Notizen')}</button><button type="button" className="web-search-button" onClick={() => navigate(query.trim() ? `/search?q=${encodeURIComponent(query.trim())}&scope=web` : '/search?scope=web')}><Search size={15} />{text('Internet', 'Internet')}</button>
           </form>
           <div className="profile-presence">
             <button type="button" className="profile-avatar-wrap profile-egg-trigger" onClick={tapProfile} aria-label={text('Yuuki’s profile picture', 'Yuukis Profilbild')}><img key={settings.profileImage} src={settings.profileImage} alt={settings.profileImageAlt} decoding="async" /><span aria-hidden="true" /></button>

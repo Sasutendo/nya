@@ -424,7 +424,7 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
   for (const stroke of value) {
     if (!stroke || typeof stroke !== 'object') return false
     const candidate = stroke as Record<string, unknown>
-    if (!['pen', 'highlighter', 'eraser', 'text', 'arrow', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
+    if (!['pen', 'highlighter', 'eraser', 'text', 'line', 'arrow', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < 1 || candidate.size > 100) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
     if (candidate.tool === 'text' || candidate.tool === 'note' || candidate.tool === 'link') {
@@ -742,6 +742,19 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
   return json({ asset }, 201)
 }
 
+async function publicWebSearch(request: Request): Promise<Response> {
+  const query = cleanText(new URL(request.url).searchParams.get('q'), 180)
+  if (!query) return json({ results: [] })
+  const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&no_redirect=1&skip_disambig=0`, { headers: { Accept: 'application/json', 'User-Agent': 'NyaYuukiLearningCorner/1.0' } })
+  if (!response.ok) return error('The internet search is temporarily unavailable.', 502)
+  const payload = await response.json() as { Heading?: string; AbstractText?: string; AbstractURL?: string; RelatedTopics?: Array<Record<string, unknown>> }
+  const results: Array<{ title: string; url: string; snippet: string }> = []
+  if (payload.AbstractURL && payload.AbstractText) results.push({ title: payload.Heading || query, url: payload.AbstractURL, snippet: payload.AbstractText })
+  const addTopic = (topic: Record<string, unknown>) => { const url = cleanText(topic.FirstURL, 2000); const snippet = cleanText(topic.Text, 700); if (url && snippet && results.length < 20) results.push({ title: snippet.split(' - ')[0].slice(0, 180), url, snippet }) }
+  for (const topic of payload.RelatedTopics || []) { if (Array.isArray(topic.Topics)) for (const nested of topic.Topics as Array<Record<string, unknown>>) addTopic(nested); else addTopic(topic) }
+  return json({ results }, 200, { 'Cache-Control': 'public, max-age=300' })
+}
+
 async function router(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname
@@ -760,6 +773,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
   if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
+  if (request.method === 'GET' && path === '/api/public/web-search') return publicWebSearch(request)
   if (request.method === 'POST' && path === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && path === '/api/auth/logout') return json({ ok: true }, 200, { 'Set-Cookie': 'nya_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' })
   if (request.method === 'GET' && path === '/api/auth/session') {
