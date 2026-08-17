@@ -937,7 +937,9 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .whiteboard-sidebar > div button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border: 0; border-radius: 8px; color: #fff; background: var(--sage-dark); font-size: .58rem; font-weight: 800; cursor: pointer; }
 .whiteboard-sidebar nav { display: grid; gap: 4px; padding: 8px; }
 .whiteboard-sidebar nav > button { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 9px; width: 100%; padding: 10px; border: 1px solid transparent; border-radius: 10px; color: var(--ink-soft); background: transparent; text-align: left; cursor: pointer; }
-.whiteboard-sidebar nav > button:hover, .whiteboard-sidebar nav > button.is-active { color: var(--ink); border-color: var(--line); background: rgba(255,255,255,.58); }
+.whiteboard-sidebar nav > button:hover, .whiteboard-sidebar nav > button.is-active { color: var(--ink); border-color: var(--board-accent, var(--line)); background: rgba(255,255,255,.58); box-shadow: inset 3px 0 var(--board-accent, transparent); }
+.whiteboard-sidebar nav > button.is-dragging { opacity:.42; transform:scale(.98); }
+.board-drag-grip { color:var(--board-accent, var(--ink-soft)); font-size:1rem; cursor:grab; touch-action:none; }
 .whiteboard-sidebar nav span { display: grid; min-width: 0; gap: 3px; overflow: hidden; font-size: .66rem; font-weight: 750; white-space: nowrap; text-overflow: ellipsis; }
 .whiteboard-sidebar nav small { color: var(--ink-soft); font-size: .5rem; font-weight: 500; }
 .whiteboard-workspace { min-width: 0; overflow: hidden; }
@@ -974,18 +976,26 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .zoom-control span { min-width: 35px; color: var(--ink-soft); font-size: .55rem; text-align: center; }
 .whiteboard-scroll { overflow: auto; max-height: min(72vh, 820px); padding: 25px; background: #e5d8dd; overscroll-behavior: contain; }
 .whiteboard-paper { position: relative; min-width: 434px; aspect-ratio: 210 / 297; margin: auto; background-color: #fffdf9; box-shadow: 0 18px 45px rgba(72,45,58,.18); transform-origin: top left; }
-.whiteboard-paper.background-grid, .public-a4-paper.background-grid { background-image: linear-gradient(rgba(142,111,132,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(142,111,132,.13) 1px, transparent 1px); background-size: 3.2258% 2.2805%; }
-.whiteboard-paper.background-lined, .public-a4-paper.background-lined { background-image: linear-gradient(rgba(112,143,165,.18) 1px, transparent 1px); background-size: 100% 2.2805%; }
-.whiteboard-paper.background-dots, .public-a4-paper.background-dots { background-image: radial-gradient(rgba(142,111,132,.23) 1.2px, transparent 1.3px); background-size: 3.2258% 2.2805%; }
-.whiteboard-paper.background-margin, .public-a4-paper.background-margin { background-image: linear-gradient(90deg, transparent 11%, rgba(224,111,139,.42) 11%, rgba(224,111,139,.42) 11.18%, transparent 11.18%), linear-gradient(rgba(112,143,165,.18) 1px, transparent 1px); background-size: 100% 100%, 100% 2.2805%; }
+.whiteboard-paper.background-grid, .public-a4-paper.background-grid { background-image: linear-gradient(rgba(142,111,132,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(142,111,132,.13) 1px, transparent 1px); background-size: var(--ruling, 40px) var(--ruling, 40px); }
+.whiteboard-paper.background-lined, .public-a4-paper.background-lined { background-image: linear-gradient(rgba(112,143,165,.18) 1px, transparent 1px); background-size: 100% var(--ruling, 40px); }
+.whiteboard-paper.background-dots, .public-a4-paper.background-dots { background-image: radial-gradient(rgba(142,111,132,.23) 1.2px, transparent 1.3px); background-size: var(--ruling, 40px) var(--ruling, 40px); }
+.whiteboard-paper.background-margin, .public-a4-paper.background-margin { background-image: linear-gradient(90deg, transparent 11%, rgba(224,111,139,.42) 11%, rgba(224,111,139,.42) 11.18%, transparent 11.18%), linear-gradient(rgba(112,143,165,.18) 1px, transparent 1px); background-size: 100% 100%, 100% var(--ruling, 40px); }
 .whiteboard-paper.background-cornell, .public-a4-paper.background-cornell { background-image: linear-gradient(90deg, transparent 28%, rgba(178,124,148,.3) 28%, rgba(178,124,148,.3) 28.18%, transparent 28.18%), linear-gradient(0deg, transparent 17%, rgba(178,124,148,.3) 17%, rgba(178,124,148,.3) 17.18%, transparent 17.18%), linear-gradient(rgba(112,143,165,.15) 1px, transparent 1px); background-size: 100% 100%, 100% 100%, 100% 2.2805%; }
-.whiteboard-paper.background-checklist, .public-a4-paper.background-checklist { background-image: linear-gradient(90deg, transparent 9%, rgba(178,124,148,.28) 9%, rgba(178,124,148,.28) 9.18%, transparent 9.18%), linear-gradient(rgba(112,143,165,.17) 1px, transparent 1px); background-size: 100% 100%, 100% 3.4208%; }
+.whiteboard-paper.background-checklist, .public-a4-paper.background-checklist { background-image: linear-gradient(90deg, transparent 9%, rgba(178,124,148,.28) 9%, rgba(178,124,148,.28) 9.18%, transparent 9.18%), linear-gradient(rgba(112,143,165,.17) 1px, transparent 1px); background-size: 100% 100%, 100% var(--ruling, 55px); }
 .whiteboard-paper canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
 .whiteboard-inline-editor { position:absolute; z-index:4; min-width:180px; min-height:80px; padding:10px 12px; border:2px dashed rgba(189,93,135,.7); border-radius:10px; outline:none; resize:both; color:#253a35; background:rgba(255,253,249,.94); box-shadow:0 8px 22px rgba(72,45,58,.14); }
 .whiteboard-inline-editor.is-note { min-width:210px; min-height:150px; padding:22px; border:0; border-radius:4px 4px 14px 4px; background:#fff0a9; box-shadow:4px 7px 18px rgba(72,45,58,.2); }
 .whiteboard-inline-actions { position:absolute; z-index:5; display:flex; gap:6px; transform:translateY(-110%); }
 .whiteboard-inline-actions button { padding:5px 9px; }
 .whiteboard-selection-panel { display:flex; align-items:center; gap:7px; padding:6px 10px; border-radius:12px; background:var(--surface-soft); }
+.whiteboard-selection-panel label, .ruling-size { display:flex; align-items:center; gap:5px; color:var(--ink-soft); font-size:.55rem; font-weight:750; }
+.whiteboard-selection-panel input, .ruling-size input { width:90px; accent-color:var(--sage-dark); }
+.format-button { display:grid; place-items:center; width:34px; height:34px; border:1px solid var(--line); border-radius:9px; color:var(--ink-soft); background:rgba(255,255,255,.55); }
+.format-button.is-active, .zoom-control button.is-active { color:#fff; background:var(--sage-dark); }
+.custom-pen-colour input, .board-colour-picker input { width:28px; height:28px; padding:0; border:0; border-radius:8px; background:transparent; cursor:pointer; }
+.whiteboard-scroll.is-fit { display:grid; place-items:center; height:calc(100vh - 315px); min-height:520px; max-height:none; overflow:hidden; padding:12px; }
+.whiteboard-scroll.is-fit .whiteboard-paper.orientation-portrait { width:auto !important; height:calc(100% - 4px) !important; min-width:0; }
+.whiteboard-scroll.is-fit .whiteboard-paper.orientation-landscape { width:calc(100% - 4px) !important; height:auto !important; min-width:0; aspect-ratio:297 / 210; }
 .whiteboard-paper canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .whiteboard-tip { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 13px; color: var(--ink-soft); font-size: .56rem; }
 
@@ -1006,6 +1016,8 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .public-a4-stage { overflow: auto; max-height: 76vh; padding: clamp(14px, 3vw, 34px); background: #e5d8dd; }
 .public-a4-paper { position: relative; width: min(100%, 720px); aspect-ratio: 210 / 297; margin: auto; background-color: #fffdf9; box-shadow: 0 18px 45px rgba(72,45,58,.18); }
 .public-a4-paper canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+.public-board-link { position:absolute; z-index:3; border:2px solid transparent; border-radius:10px; }
+.public-board-link:hover, .public-board-link:focus-visible { border-color:#bd5d87; box-shadow:0 0 0 4px rgba(189,93,135,.18); }
 .public-page-controls { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); }
 .public-page-controls > button { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--white); font-size: .57rem; font-weight: 800; cursor: pointer; }
 .public-page-controls > div { display: flex; justify-content: center; gap: 5px; overflow-x: auto; }

@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, FileText, FolderKanban, Presentation, Search, X } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { ArrowUpRight, BookOpen, FileText, FolderKanban, NotebookTabs, Presentation, Search, X } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ContentCard } from '../components/ContentCard'
 import { EmptyState, LoadingState } from '../components/Feedback'
-import { getPublicItems } from '../lib/api'
+import { getPublicItems, getPublicWhiteboards } from '../lib/api'
 import { itemTypeLabelLocalized } from '../lib/format'
 import { useLanguage } from '../lib/i18n'
-import type { ContentItem, ItemType } from '../types'
+import type { ContentItem, ItemType, WhiteboardBoard } from '../types'
 
 export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
   const { language, text } = useLanguage()
   const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<ContentItem[]>([])
+  const [notebooks, setNotebooks] = useState<WhiteboardBoard[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const activeType = fixedType || (searchParams.get('type') as ItemType | null) || 'all'
@@ -19,8 +20,8 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
 
   useEffect(() => {
     setLoading(true)
-    getPublicItems().then((result) => {
-      setItems(result)
+    Promise.all([getPublicItems(), getPublicWhiteboards()]).then(([result, boards]) => {
+      setItems(result); setNotebooks(boards)
       setLoading(false)
     })
   }, [])
@@ -35,6 +36,11 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
     const matchesSearch = !search || [item.title, item.excerpt, item.category, ...item.tags].join(' ').toLowerCase().includes(search)
     return matchesType && matchesCategory && matchesSearch
   }), [activeType, category, items, query])
+  const visibleNotebooks = useMemo(() => notebooks.filter((board) => {
+    if (activeType !== 'all' && activeType !== 'project') return false
+    const search = query.trim().toLowerCase()
+    return (!search || `${board.title} notebook study project`.toLowerCase().includes(search)) && (category === 'all' || category === 'Notebooks')
+  }), [activeType, category, notebooks, query])
 
   const typeOptions: Array<{ value: ItemType | 'all'; label: string; icon: typeof BookOpen }> = [
     { value: 'all', label: text('Everything', 'Alles'), icon: BookOpen },
@@ -103,14 +109,14 @@ export function LibraryPage({ fixedType }: { fixedType?: ItemType }) {
       </section>
 
       <div className="library-result-bar">
-        <p><strong>{visible.length}</strong> {visible.length === 1 ? text('result', 'Ergebnis') : text('results', 'Ergebnisse')}</p>
+        <p><strong>{visible.length + visibleNotebooks.length}</strong> {visible.length + visibleNotebooks.length === 1 ? text('result', 'Ergebnis') : text('results', 'Ergebnisse')}</p>
         {(query || category !== 'all' || (!fixedType && activeType !== 'all')) && (
           <button type="button" onClick={() => { setQuery(''); setSearchParams({}) }}>{text('Reset filters', 'Filter zurücksetzen')}</button>
         )}
       </div>
 
-      {loading ? <LoadingState label={text('Opening the library…', 'Bibliothek wird geöffnet…')} /> : visible.length ? (
-        <div className="content-grid library-grid">{visible.map((item) => <ContentCard key={item.id} item={item} />)}</div>
+      {loading ? <LoadingState label={text('Opening the library…', 'Bibliothek wird geöffnet…')} /> : visible.length || visibleNotebooks.length ? (
+        <div className="content-grid library-grid">{visibleNotebooks.map((board) => <article key={board.id} className="content-card type-project notebook-project-card"><Link to={`/notebooks?board=${encodeURIComponent(board.id)}`} className="content-card-link"><div className="card-visual"><NotebookTabs size={38} strokeWidth={1.5} /><span className="type-pill"><FolderKanban size={13} />{text('Notebook project', 'Lernheft-Projekt')}</span></div><div className="card-content"><div className="card-kicker"><span>{text('Notebooks', 'Lernhefte')}</span><span>·</span><span>{board.pages.length} {text('pages', 'Seiten')}</span></div><h3>{board.title}</h3><p>{text('A published, read-only study notebook with handwritten pages and learning material.', 'Ein veröffentlichtes, schreibgeschütztes Lernheft mit handschriftlichen Seiten und Lernmaterial.')}</p><div className="card-footer"><span className="read-link">{text('Open book', 'Lernheft öffnen')} <ArrowUpRight size={15} /></span></div></div></Link></article>)}{visible.map((item) => <ContentCard key={item.id} item={item} />)}</div>
       ) : (
         <EmptyState title={text('Nothing found', 'Nichts gefunden')} message={text('Try a different word or reset the filters to see everything.', 'Probiere ein anderes Wort oder setze die Filter zurück.')} />
       )}

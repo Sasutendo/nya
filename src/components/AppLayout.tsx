@@ -73,7 +73,7 @@ export function AppLayout() {
       <header className="site-header">
         <div className="header-inner">
           <Link to="/" className="brand" aria-label={`${settings.siteTitle} home`} onClick={tapBrand}>
-            <span className="brand-avatar" aria-hidden="true"><img src={settings.profileImage} alt="" /></span>
+            <span className="brand-avatar" aria-hidden="true"><img key={settings.profileImage} src={settings.profileImage} alt="" decoding="async" /></span>
             <span className="brand-copy">
               <strong>{settings.siteTitle}</strong>
               <small>by {settings.ownerName}</small>

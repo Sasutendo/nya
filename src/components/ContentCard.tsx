@@ -10,12 +10,12 @@ const icons = {
   project: FolderKanban,
 }
 
-export function ContentCard({ item, compact = false }: { item: ContentItem; compact?: boolean }) {
+export function ContentCard({ item, compact = false, to }: { item: ContentItem; compact?: boolean; to?: string }) {
   const Icon = icons[item.type]
   const { language, text } = useLanguage()
   return (
     <article className={`content-card type-${item.type}${compact ? ' is-compact' : ''}`}>
-      <Link to={`/item/${item.slug}`} className="content-card-link" aria-label={`${text('Open', 'Öffnen')}: ${item.title}`}>
+      <Link to={to || `/item/${item.slug}`} className="content-card-link" aria-label={`${text('Open', 'Öffnen')}: ${item.title}`}>
         <div className="card-visual">
           {item.coverImage ? (
             <img src={item.coverImage} alt="" loading="lazy" />

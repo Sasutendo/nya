@@ -26,6 +26,7 @@ interface ItemRow {
   view_count: number
   created_at: string
   updated_at: string
+  sort_order: number
   published_at: string | null
 }
 
@@ -107,6 +108,7 @@ interface WhiteboardRow {
   published: number
   created_at: string
   updated_at: string
+  sort_order: number
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -197,7 +199,7 @@ function mapReflection(row: ReflectionRow) {
 function mapWhiteboard(row: WhiteboardRow) {
   const stored = parseJson<Array<Record<string, unknown>>>(row.strokes_json, [])
   const pages = stored[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: stored }] : stored
-  return { id: row.id, title: row.title, pages, published: Boolean(row.published), createdAt: row.created_at, updatedAt: row.updated_at }
+  return { id: row.id, title: row.title, pages, published: Boolean(row.published), sortOrder: row.sort_order || 0, createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -379,7 +381,7 @@ async function publicCalendar(request: Request, env: Env): Promise<Response> {
 }
 
 async function publicWhiteboards(env: Env): Promise<Response> {
-  const result = await env.DB.prepare('SELECT * FROM whiteboards WHERE published=1 ORDER BY updated_at DESC').all<WhiteboardRow>()
+  const result = await env.DB.prepare('SELECT * FROM whiteboards WHERE published=1 ORDER BY sort_order ASC, updated_at DESC').all<WhiteboardRow>()
   return json({ boards: (result.results || []).map(mapWhiteboard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
 }
 
@@ -412,7 +414,7 @@ async function adminStudyHub(env: Env): Promise<Response> {
 }
 
 async function adminWhiteboards(env: Env): Promise<Response> {
-  const result = await env.DB.prepare('SELECT * FROM whiteboards ORDER BY updated_at DESC').all<WhiteboardRow>()
+  const result = await env.DB.prepare('SELECT * FROM whiteboards ORDER BY sort_order ASC, updated_at DESC').all<WhiteboardRow>()
   return json({ boards: (result.results || []).map(mapWhiteboard) })
 }
 
@@ -422,13 +424,15 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
   for (const stroke of value) {
     if (!stroke || typeof stroke !== 'object') return false
     const candidate = stroke as Record<string, unknown>
-    if (!['pen', 'highlighter', 'eraser', 'text', 'arrow', 'note'].includes(String(candidate.tool))) return false
+    if (!['pen', 'highlighter', 'eraser', 'text', 'arrow', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < 1 || candidate.size > 100) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
-    if (candidate.tool === 'text' || candidate.tool === 'note') {
+    if (candidate.tool === 'text' || candidate.tool === 'note' || candidate.tool === 'link') {
       if (!cleanText(candidate.text, 4000) || !['handwritten', 'sans', 'serif', 'mono'].includes(String(candidate.fontFamily)) || typeof candidate.fontSize !== 'number' || candidate.fontSize < 10 || candidate.fontSize > 160) return false
       if (candidate.tool === 'note' && (typeof candidate.width !== 'number' || typeof candidate.height !== 'number' || candidate.width < 100 || candidate.width > 800 || candidate.height < 80 || candidate.height > 800)) return false
+      if (candidate.tool === 'link' && !cleanText(candidate.url, 2000)) return false
     }
+    if (candidate.tool === 'image' && (!cleanText(candidate.imageUrl, 2000) || typeof candidate.width !== 'number' || typeof candidate.height !== 'number')) return false
     points += candidate.points.length
     if (points > 150_000) return false
     for (const point of candidate.points) {
@@ -460,14 +464,15 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
   const background = cleanText(body.pages[0].background, 20)
   const strokesJson = JSON.stringify(body.pages)
   const published = body.published ? 1 : 0
+  const sortOrder = typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder) ? Math.max(0, Math.floor(body.sortOrder)) : 0
   if (strokesJson.length > 3_000_000) return error('This board is too large. Start a fresh board or remove a few strokes.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,updated_at=? WHERE id=?').bind(title, background, strokesJson, published, now, id).run()
+    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,sort_order=?,updated_at=? WHERE id=?').bind(title, background, strokesJson, published, sortOrder, now, id).run()
     if (!result.meta.changes) return error('This whiteboard could not be found.', 404)
   } else {
-    await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,published,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').bind(id, title, background, strokesJson, published, now, now).run()
+    await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,published,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, title, background, strokesJson, published, sortOrder, now, now).run()
   }
   const row = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
   return json({ board: mapWhiteboard(row!) }, existingId ? 200 : 201)

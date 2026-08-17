@@ -104,7 +104,7 @@ export function HomePage() {
             <button type="submit">{text('Search', 'Suchen')}</button>
           </form>
           <div className="profile-presence">
-            <button type="button" className="profile-avatar-wrap profile-egg-trigger" onClick={tapProfile} aria-label={text('Yuuki’s profile picture', 'Yuukis Profilbild')}><img src={settings.profileImage} alt={settings.profileImageAlt} /><span aria-hidden="true" /></button>
+            <button type="button" className="profile-avatar-wrap profile-egg-trigger" onClick={tapProfile} aria-label={text('Yuuki’s profile picture', 'Yuukis Profilbild')}><img key={settings.profileImage} src={settings.profileImage} alt={settings.profileImageAlt} decoding="async" /><span aria-hidden="true" /></button>
             <button type="button" className="profile-presence-copy profile-copy-trigger" onClick={tapProfileCopy}><small>{text('Currently learning with', 'Lernportfolio von')}</small><strong>{settings.ownerName}</strong><span>{text('Nursing training journey in progress', 'Auf dem Weg zur Pflegefachfrau')}</span></button>
             <OwnerClock detailed />
           </div>

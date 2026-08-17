@@ -544,7 +544,7 @@ export function StudioSettingsPage() {
       <header className="studio-header"><div><Link to="/studio" className="back-link"><ArrowLeft size={16} />Back to studio</Link><p className="eyebrow"><Settings size={15} />Site settings</p><h1>Make the corner yours</h1><p>Update your public identity, profile picture and the words used across the site.</p></div><StudioNav /></header>
       <form className="editor-panel settings-form" onSubmit={save}>
         <div className="profile-settings-card">
-          <div className="profile-settings-preview"><img src={draft.profileImage} alt={draft.profileImageAlt} /><span aria-hidden="true" /></div>
+          <div className="profile-settings-preview"><img key={draft.profileImage} src={draft.profileImage} alt={draft.profileImageAlt} decoding="async" /><span aria-hidden="true" /></div>
           <div><p className="eyebrow">Profile picture</p><h2>Your public profile</h2><p>PNG, JPG, WebP and animated GIFs work here. Once uploaded, the image saves automatically and updates for connected visitors.</p><MediaUpload label="Choose profile picture" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" onUploaded={(asset) => field('profileImage', asset.url)} /></div>
         </div>
         <div className="form-grid">
