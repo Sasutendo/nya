@@ -182,8 +182,8 @@ export interface StudyHubData {
   reflections: StudyReflection[]
 }
 
-export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text'
-export type WhiteboardBackground = 'plain' | 'grid' | 'lined' | 'dots'
+export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text' | 'arrow' | 'note' | 'select'
+export type WhiteboardBackground = 'plain' | 'grid' | 'lined' | 'dots' | 'margin' | 'cornell' | 'checklist'
 
 export interface WhiteboardPoint { x: number; y: number; pressure: number }
 export interface WhiteboardStroke {
@@ -195,6 +195,9 @@ export interface WhiteboardStroke {
   text?: string
   fontFamily?: 'handwritten' | 'sans' | 'serif' | 'mono'
   fontSize?: number
+  width?: number
+  height?: number
+  noteColour?: string
 }
 
 export interface WhiteboardPageData {

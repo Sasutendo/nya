@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Download, Eraser, Eye, EyeOff, FilePlus2, Grid3X3, Highlighter, LoaderCircle, Minus, MousePointer2, PenLine,
-  Plus, Redo2, RotateCcw, Save, Sparkles, TextCursorInput, Trash2, Undo2, ZoomIn, ZoomOut,
+  ArrowUpRight, Check, Download, Eraser, Eye, EyeOff, FilePlus2, Grid3X3, Highlighter, LoaderCircle, Minus, MousePointer2, PenLine,
+  Plus, Redo2, RotateCcw, Save, Sparkles, StickyNote, TextCursorInput, Trash2, Undo2, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { ErrorNotice, LoadingState } from '../../components/Feedback'
@@ -17,11 +17,16 @@ const colours = ['#253a35', '#bd5d87', '#9164a0', '#477f91', '#5d8b6b', '#d28155
 function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
   if (!stroke.points.length) return
   context.save()
-  if (stroke.tool === 'text') {
+  if (stroke.tool === 'text' || stroke.tool === 'note') {
     const families = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
+    if (stroke.tool === 'note') { context.fillStyle = stroke.noteColour || '#fff0a9'; context.shadowColor = 'rgba(72,45,58,.18)'; context.shadowBlur = 18; context.fillRect(stroke.points[0].x, stroke.points[0].y, stroke.width || 300, stroke.height || 220); context.shadowBlur = 0 }
     context.fillStyle = stroke.colour; context.globalAlpha = 1; context.textBaseline = 'top'; context.font = `${stroke.fontSize || 36}px ${families[stroke.fontFamily || 'handwritten']}`
-    const lines = (stroke.text || '').split('\n'); lines.forEach((line, index) => context.fillText(line, stroke.points[0].x, stroke.points[0].y + index * (stroke.fontSize || 36) * 1.25))
+    const inset = stroke.tool === 'note' ? 24 : 0; const lines = (stroke.text || '').split('\n'); lines.forEach((line, index) => context.fillText(line, stroke.points[0].x + inset, stroke.points[0].y + inset + index * (stroke.fontSize || 36) * 1.25))
     context.restore(); return
+  }
+  if (stroke.tool === 'arrow' && stroke.points.length > 1) {
+    const start = stroke.points[0]; const end = stroke.points[stroke.points.length - 1]; const angle = Math.atan2(end.y - start.y, end.x - start.x); const head = Math.max(18, stroke.size * 4)
+    context.strokeStyle = stroke.colour; context.lineWidth = stroke.size; context.lineCap = 'round'; context.beginPath(); context.moveTo(start.x, start.y); context.lineTo(end.x, end.y); context.stroke(); context.beginPath(); context.moveTo(end.x, end.y); context.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6)); context.moveTo(end.x, end.y); context.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6)); context.stroke(); context.restore(); return
   }
   context.lineCap = 'round'; context.lineJoin = 'round'
   context.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over'
@@ -68,6 +73,9 @@ export function WhiteboardPage() {
   const [stylusOnly, setStylusOnly] = useState(false)
   const [fontFamily, setFontFamily] = useState<NonNullable<WhiteboardStroke['fontFamily']>>('handwritten')
   const [fontSize, setFontSize] = useState(38)
+  const [selectedId, setSelectedId] = useState('')
+  const [editor, setEditor] = useState<{ kind: 'text' | 'note'; point: WhiteboardPoint; value: string } | null>(null)
+  const drag = useRef<{ id: string; start: WhiteboardPoint; original: WhiteboardPoint[] } | null>(null)
   const [past, setPast] = useState<WhiteboardStroke[][]>([])
   const [future, setFuture] = useState<WhiteboardStroke[][]>([])
   const board = useMemo(() => boards.find((candidate) => candidate.id === activeId), [activeId, boards])
@@ -113,20 +121,27 @@ export function WhiteboardPage() {
 
   function beginStroke(event: React.PointerEvent<HTMLCanvasElement>) {
     if (!board || !page || (stylusOnly && event.pointerType !== 'pen')) return
-    if (tool === 'text') {
-      const text = window.prompt('Type the text for this page:')
-      if (!text?.trim()) return
-      const stroke: WhiteboardStroke = { id: newId('text'), tool: 'text', colour, size: fontSize, fontSize, fontFamily, text: text.trim(), points: [pointFromEvent(event)] }
-      setPast((history) => [...history.slice(-49), page.strokes]); setFuture([])
-      updatePage({ strokes: [...page.strokes, stroke] }); return
+    const point = pointFromEvent(event)
+    if (tool === 'text' || tool === 'note') { setEditor({ kind: tool, point, value: '' }); setSelectedId(''); return }
+    if (tool === 'select') {
+      const hit = [...page.strokes].reverse().find((stroke) => {
+        if (!['text', 'note'].includes(stroke.tool) || !stroke.points[0]) return false
+        const width = stroke.tool === 'note' ? stroke.width || 300 : Math.max(120, (stroke.text?.length || 1) * (stroke.fontSize || 36) * .55)
+        const height = stroke.tool === 'note' ? stroke.height || 220 : Math.max(stroke.fontSize || 36, (stroke.text?.split('\n').length || 1) * (stroke.fontSize || 36) * 1.25)
+        return point.x >= stroke.points[0].x && point.x <= stroke.points[0].x + width && point.y >= stroke.points[0].y && point.y <= stroke.points[0].y + height
+      })
+      setSelectedId(hit?.id || '')
+      if (hit) { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: hit.id, start: point, original: hit.points.map((item) => ({ ...item })) }; setPast((history) => [...history.slice(-49), page.strokes]); setFuture([]) }
+      return
     }
     event.currentTarget.setPointerCapture(event.pointerId)
-    const stroke: WhiteboardStroke = { id: newId('stroke'), tool, colour, size: tool === 'highlighter' ? Math.max(18, size * 3.2) : tool === 'eraser' ? Math.max(18, size * 2.5) : size, points: [pointFromEvent(event)] }
+    const stroke: WhiteboardStroke = { id: newId('stroke'), tool, colour, size: tool === 'highlighter' ? Math.max(18, size * 3.2) : tool === 'eraser' ? Math.max(18, size * 2.5) : size, points: [point] }
     activeStroke.current = stroke
     const context = event.currentTarget.getContext('2d'); if (context) drawStroke(context, stroke)
   }
 
   function continueStroke(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (drag.current && page) { const point = pointFromEvent(event); const dx = point.x - drag.current.start.x; const dy = point.y - drag.current.start.y; updatePage({ strokes: page.strokes.map((stroke) => stroke.id === drag.current?.id ? { ...stroke, points: drag.current.original.map((item) => ({ ...item, x: item.x + dx, y: item.y + dy })) } : stroke) }); return }
     const stroke = activeStroke.current
     if (!stroke || !event.currentTarget.hasPointerCapture(event.pointerId)) return
     const point = pointFromEvent(event); const previous = stroke.points[stroke.points.length - 1]; stroke.points.push(point)
@@ -134,6 +149,7 @@ export function WhiteboardPage() {
   }
 
   function finishStroke(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (drag.current) { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); drag.current = null; return }
     const stroke = activeStroke.current
     if (!stroke || !board || !page) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
@@ -142,6 +158,15 @@ export function WhiteboardPage() {
     const next = { ...board, pages: board.pages.map((candidate) => candidate.id === page.id ? { ...candidate, strokes: [...candidate.strokes, stroke] } : candidate), updatedAt: new Date().toISOString() }
     setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
   }
+
+  function commitEditor() {
+    if (!editor || !page || !editor.value.trim()) { setEditor(null); return }
+    const stroke: WhiteboardStroke = { id: newId(editor.kind), tool: editor.kind, colour, size: fontSize, fontSize, fontFamily, text: editor.value.trim(), points: [editor.point], ...(editor.kind === 'note' ? { width: 320, height: 230, noteColour: '#fff0a9' } : {}) }
+    setPast((history) => [...history.slice(-49), page.strokes]); setFuture([]); updatePage({ strokes: [...page.strokes, stroke] }); setEditor(null); setSelectedId(stroke.id); setTool('select')
+  }
+
+  function updateSelected(patch: Partial<WhiteboardStroke>) { if (!page || !selectedId) return; updatePage({ strokes: page.strokes.map((stroke) => stroke.id === selectedId ? { ...stroke, ...patch } : stroke) }) }
+  function deleteSelected() { if (!page || !selectedId) return; setPast((history) => [...history.slice(-49), page.strokes]); updatePage({ strokes: page.strokes.filter((stroke) => stroke.id !== selectedId) }); setSelectedId('') }
 
   function changeStrokes(strokes: WhiteboardStroke[], nextPast: WhiteboardStroke[][], nextFuture: WhiteboardStroke[][]) {
     if (!board || !page) return
@@ -216,16 +241,17 @@ export function WhiteboardPage() {
         </div>
         <div className="whiteboard-pages"><div>{board.pages.map((candidate, index) => <button key={candidate.id} type="button" className={candidate.id === page.id ? 'is-active' : ''} onClick={() => { setActivePageId(candidate.id); setPast([]); setFuture([]) }}>{index + 1}<span>{candidate.name}</span></button>)}</div><button type="button" onClick={addPage}><FilePlus2 size={15} />Add page</button><button type="button" onClick={deletePage} disabled={board.pages.length === 1} aria-label="Delete current page"><Trash2 size={15} /></button></div>
         <div className="whiteboard-toolbar" role="toolbar" aria-label="Drawing tools">
-          <div className="tool-group">{([['pen', PenLine, 'Pen'], ['highlighter', Highlighter, 'Highlighter'], ['eraser', Eraser, 'Eraser'], ['text', TextCursorInput, 'Text']] as const).map(([id, Icon, label]) => <button key={id} type="button" className={tool === id ? 'is-active' : ''} onClick={() => setTool(id)} title={label}><Icon size={18} /><span>{label}</span></button>)}</div>
+          <div className="tool-group">{([['select', MousePointer2, 'Move'], ['pen', PenLine, 'Pen'], ['highlighter', Highlighter, 'Highlighter'], ['eraser', Eraser, 'Eraser'], ['arrow', ArrowUpRight, 'Arrow'], ['text', TextCursorInput, 'Text'], ['note', StickyNote, 'Note']] as const).map(([id, Icon, label]) => <button key={id} type="button" className={tool === id ? 'is-active' : ''} onClick={() => { setTool(id); setEditor(null) }} title={label}><Icon size={18} /><span>{label}</span></button>)}</div>
           <div className="colour-palette">{colours.map((value) => <button key={value} type="button" className={colour === value ? 'is-active' : ''} style={{ '--pen-colour': value } as React.CSSProperties} onClick={() => { setColour(value); if (tool === 'eraser') setTool('pen') }} aria-label={`Use ${value}`} />)}</div>
           <label className="stroke-size"><Minus size={13} /><input type="range" min="2" max="32" value={size} onChange={(event) => setSize(Number(event.target.value))} aria-label="Stroke size" /><Plus size={13} /></label>
           <div className="tool-group history-tools"><button type="button" onClick={undo} disabled={!past.length} title="Undo"><Undo2 size={18} /></button><button type="button" onClick={redo} disabled={!future.length} title="Redo"><Redo2 size={18} /></button></div>
           {tool === 'text' && <><select value={fontFamily} onChange={(event) => setFontFamily(event.target.value as typeof fontFamily)} aria-label="Text style"><option value="handwritten">Handwritten</option><option value="sans">Clean sans</option><option value="serif">Classic serif</option><option value="mono">Monospace</option></select><label className="font-size-control">Text <input type="number" min="10" max="160" value={fontSize} onChange={(event) => setFontSize(Math.max(10, Math.min(160, Number(event.target.value))))} /></label></>}
-          <select value={page.background} onChange={(event) => updatePage({ background: event.target.value as WhiteboardBackground })} aria-label="Paper background"><option value="plain">Plain paper</option><option value="grid">Grid paper</option><option value="lined">Lined paper</option><option value="dots">Dot paper</option></select>
+          {selectedId && <div className="whiteboard-selection-panel"><span>Selected</span><button type="button" onClick={() => updateSelected({ fontSize: Math.max(10, (page.strokes.find((item) => item.id === selectedId)?.fontSize || 36) - 4) })} title="Shrink text"><Minus size={15} /></button><button type="button" onClick={() => updateSelected({ fontSize: Math.min(160, (page.strokes.find((item) => item.id === selectedId)?.fontSize || 36) + 4) })} title="Grow text"><Plus size={15} /></button><button type="button" onClick={deleteSelected} title="Delete selected object"><Trash2 size={15} /></button></div>}
+          <select value={page.background} onChange={(event) => updatePage({ background: event.target.value as WhiteboardBackground })} aria-label="Paper background"><option value="plain">Plain paper</option><option value="grid">Squared paper</option><option value="lined">Ruled paper</option><option value="dots">Dot paper</option><option value="margin">Ruled + margin</option><option value="cornell">Cornell notes</option><option value="checklist">Checklist</option></select>
           <label className="stylus-toggle"><input type="checkbox" checked={stylusOnly} onChange={(event) => setStylusOnly(event.target.checked)} /><MousePointer2 size={15} />Stylus only</label>
           <div className="zoom-control"><button type="button" onClick={() => setZoom((value) => Math.max(40, value - 10))}><ZoomOut size={16} /></button><span>{zoom}%</span><button type="button" onClick={() => setZoom((value) => Math.min(150, value + 10))}><ZoomIn size={16} /></button></div>
         </div>
-        <div className="whiteboard-scroll"><div className={`whiteboard-paper background-${page.background}`} style={{ width: `${zoom / 100 * BOARD_WIDTH}px`, height: `${zoom / 100 * BOARD_HEIGHT}px` }}><canvas ref={canvasRef} width={BOARD_WIDTH} height={BOARD_HEIGHT} onPointerDown={beginStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} /></div></div>
+        <div className="whiteboard-scroll"><div className={`whiteboard-paper background-${page.background}`} style={{ width: `${zoom / 100 * BOARD_WIDTH}px`, height: `${zoom / 100 * BOARD_HEIGHT}px` }}><canvas ref={canvasRef} width={BOARD_WIDTH} height={BOARD_HEIGHT} onPointerDown={beginStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} />{editor && <><textarea autoFocus className={`whiteboard-inline-editor ${editor.kind === 'note' ? 'is-note' : ''}`} style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%`, fontFamily: fontFamily === 'handwritten' ? '"Segoe Print", cursive' : fontFamily, fontSize: `${fontSize * zoom / 100}px` }} value={editor.value} onChange={(event) => setEditor({ ...editor, value: event.target.value })} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commitEditor(); if (event.key === 'Escape') setEditor(null) }} placeholder={editor.kind === 'note' ? 'Write a little note…' : 'Type directly on the page…'} /><div className="whiteboard-inline-actions" style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%` }}><button type="button" onClick={commitEditor}><Check size={14} />Place</button><button type="button" onClick={() => setEditor(null)}><X size={14} /></button></div></>}</div></div>
         <p className="whiteboard-tip"><RotateCcw size={14} />Tip: turn on <strong>Stylus only</strong> before resting your hand on the tablet. Finger scrolling still works around the paper.</p>
       </section>}
     </div>

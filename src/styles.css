@@ -977,6 +977,15 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .whiteboard-paper.background-grid, .public-a4-paper.background-grid { background-image: linear-gradient(rgba(142,111,132,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(142,111,132,.13) 1px, transparent 1px); background-size: 3.2258% 2.2805%; }
 .whiteboard-paper.background-lined, .public-a4-paper.background-lined { background-image: linear-gradient(rgba(112,143,165,.18) 1px, transparent 1px); background-size: 100% 2.2805%; }
 .whiteboard-paper.background-dots, .public-a4-paper.background-dots { background-image: radial-gradient(rgba(142,111,132,.23) 1.2px, transparent 1.3px); background-size: 3.2258% 2.2805%; }
+.whiteboard-paper.background-margin, .public-a4-paper.background-margin { background-image: linear-gradient(90deg, transparent 11%, rgba(224,111,139,.42) 11%, rgba(224,111,139,.42) 11.18%, transparent 11.18%), linear-gradient(rgba(112,143,165,.18) 1px, transparent 1px); background-size: 100% 100%, 100% 2.2805%; }
+.whiteboard-paper.background-cornell, .public-a4-paper.background-cornell { background-image: linear-gradient(90deg, transparent 28%, rgba(178,124,148,.3) 28%, rgba(178,124,148,.3) 28.18%, transparent 28.18%), linear-gradient(0deg, transparent 17%, rgba(178,124,148,.3) 17%, rgba(178,124,148,.3) 17.18%, transparent 17.18%), linear-gradient(rgba(112,143,165,.15) 1px, transparent 1px); background-size: 100% 100%, 100% 100%, 100% 2.2805%; }
+.whiteboard-paper.background-checklist, .public-a4-paper.background-checklist { background-image: linear-gradient(90deg, transparent 9%, rgba(178,124,148,.28) 9%, rgba(178,124,148,.28) 9.18%, transparent 9.18%), linear-gradient(rgba(112,143,165,.17) 1px, transparent 1px); background-size: 100% 100%, 100% 3.4208%; }
+.whiteboard-paper canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+.whiteboard-inline-editor { position:absolute; z-index:4; min-width:180px; min-height:80px; padding:10px 12px; border:2px dashed rgba(189,93,135,.7); border-radius:10px; outline:none; resize:both; color:#253a35; background:rgba(255,253,249,.94); box-shadow:0 8px 22px rgba(72,45,58,.14); }
+.whiteboard-inline-editor.is-note { min-width:210px; min-height:150px; padding:22px; border:0; border-radius:4px 4px 14px 4px; background:#fff0a9; box-shadow:4px 7px 18px rgba(72,45,58,.2); }
+.whiteboard-inline-actions { position:absolute; z-index:5; display:flex; gap:6px; transform:translateY(-110%); }
+.whiteboard-inline-actions button { padding:5px 9px; }
+.whiteboard-selection-panel { display:flex; align-items:center; gap:7px; padding:6px 10px; border-radius:12px; background:var(--surface-soft); }
 .whiteboard-paper canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .whiteboard-tip { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 13px; color: var(--ink-soft); font-size: .56rem; }
 

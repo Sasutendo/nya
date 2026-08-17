@@ -11,12 +11,14 @@ const HEIGHT = 1754
 function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
   if (!stroke.points.length) return
   context.save()
-  if (stroke.tool === 'text') {
+  if (stroke.tool === 'text' || stroke.tool === 'note') {
     const families = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
+    if (stroke.tool === 'note') { context.fillStyle = stroke.noteColour || '#fff0a9'; context.shadowColor = 'rgba(72,45,58,.18)'; context.shadowBlur = 18; context.fillRect(stroke.points[0].x, stroke.points[0].y, stroke.width || 300, stroke.height || 220); context.shadowBlur = 0 }
     context.fillStyle = stroke.colour; context.textBaseline = 'top'; context.font = `${stroke.fontSize || 36}px ${families[stroke.fontFamily || 'handwritten']}`
-    ;(stroke.text || '').split('\n').forEach((line, index) => context.fillText(line, stroke.points[0].x, stroke.points[0].y + index * (stroke.fontSize || 36) * 1.25))
+    const inset = stroke.tool === 'note' ? 24 : 0; (stroke.text || '').split('\n').forEach((line, index) => context.fillText(line, stroke.points[0].x + inset, stroke.points[0].y + inset + index * (stroke.fontSize || 36) * 1.25))
     context.restore(); return
   }
+  if (stroke.tool === 'arrow' && stroke.points.length > 1) { const start = stroke.points[0]; const end = stroke.points[stroke.points.length - 1]; const angle = Math.atan2(end.y - start.y, end.x - start.x); const head = Math.max(18, stroke.size * 4); context.strokeStyle = stroke.colour; context.lineWidth = stroke.size; context.lineCap = 'round'; context.beginPath(); context.moveTo(start.x, start.y); context.lineTo(end.x, end.y); context.stroke(); context.beginPath(); context.moveTo(end.x, end.y); context.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6)); context.moveTo(end.x, end.y); context.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6)); context.stroke(); context.restore(); return }
   context.lineCap = 'round'; context.lineJoin = 'round'; context.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over'; context.globalAlpha = stroke.tool === 'highlighter' ? .24 : 1; context.strokeStyle = stroke.colour
   if (stroke.points.length === 1) { const point = stroke.points[0]; context.beginPath(); context.arc(point.x, point.y, Math.max(1, stroke.size * .5), 0, Math.PI * 2); context.fillStyle = stroke.colour; context.fill() }
   else for (let index = 1; index < stroke.points.length; index += 1) { const previous = stroke.points[index - 1]; const current = stroke.points[index]; context.lineWidth = stroke.size * (.65 + ((previous.pressure + current.pressure) / 2) * .5); context.beginPath(); context.moveTo(previous.x, previous.y); context.lineTo(current.x, current.y); context.stroke() }

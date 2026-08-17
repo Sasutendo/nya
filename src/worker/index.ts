@@ -102,7 +102,7 @@ interface ReflectionRow {
 interface WhiteboardRow {
   id: string
   title: string
-  background: 'plain' | 'grid' | 'lined' | 'dots'
+  background: 'plain' | 'grid' | 'lined' | 'dots' | 'margin' | 'cornell' | 'checklist'
   strokes_json: string
   published: number
   created_at: string
@@ -422,11 +422,12 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
   for (const stroke of value) {
     if (!stroke || typeof stroke !== 'object') return false
     const candidate = stroke as Record<string, unknown>
-    if (!['pen', 'highlighter', 'eraser', 'text'].includes(String(candidate.tool))) return false
+    if (!['pen', 'highlighter', 'eraser', 'text', 'arrow', 'note'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < 1 || candidate.size > 100) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
-    if (candidate.tool === 'text') {
+    if (candidate.tool === 'text' || candidate.tool === 'note') {
       if (!cleanText(candidate.text, 4000) || !['handwritten', 'sans', 'serif', 'mono'].includes(String(candidate.fontFamily)) || typeof candidate.fontSize !== 'number' || candidate.fontSize < 10 || candidate.fontSize > 160) return false
+      if (candidate.tool === 'note' && (typeof candidate.width !== 'number' || typeof candidate.height !== 'number' || candidate.width < 100 || candidate.width > 800 || candidate.height < 80 || candidate.height > 800)) return false
     }
     points += candidate.points.length
     if (points > 150_000) return false
@@ -446,7 +447,7 @@ function validWhiteboardPages(value: unknown): value is Array<Record<string, unk
     if (!page || typeof page !== 'object') return false
     const candidate = page as Record<string, unknown>
     return Boolean(cleanText(candidate.id, 100) && cleanText(candidate.name, 100))
-      && ['plain', 'grid', 'lined', 'dots'].includes(String(candidate.background))
+      && ['plain', 'grid', 'lined', 'dots', 'margin', 'cornell', 'checklist'].includes(String(candidate.background))
       && validWhiteboardStrokes(candidate.strokes)
   })
 }
