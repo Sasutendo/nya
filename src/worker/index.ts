@@ -425,7 +425,7 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
     if (!stroke || typeof stroke !== 'object') return false
     const candidate = stroke as Record<string, unknown>
     if (!['pen', 'highlighter', 'eraser', 'text', 'line', 'arrow', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
-    if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < 1 || candidate.size > 100) return false
+    if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < .5 || candidate.size > 100) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
     if (candidate.tool === 'text' || candidate.tool === 'note' || candidate.tool === 'link') {
       if (!cleanText(candidate.text, 4000) || !['handwritten', 'sans', 'serif', 'mono'].includes(String(candidate.fontFamily)) || typeof candidate.fontSize !== 'number' || candidate.fontSize < 10 || candidate.fontSize > 160) return false
@@ -721,24 +721,25 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       Accept: 'application/vnd.github+json',
       'Content-Type': 'application/json',
-      'User-Agent': 'nya-yuuki-corner',
+      'User-Agent': 'Sasutendo-nya',
       'X-GitHub-Api-Version': '2022-11-28',
     },
     body: JSON.stringify({
-      message: `Add ${name} from the owner studio`,
+      message: `Upload ${name}`,
       content: btoa(binary),
       branch: env.GITHUB_BRANCH || 'main',
     }),
   })
+  const payload = await response.json().catch(() => ({})) as { message?: string; content?: { download_url?: string } }
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { message?: string }
     console.error('GitHub upload failed', response.status, payload.message)
     return error(response.status === 401 || response.status === 403
       ? 'GitHub could not authorise this upload. Check the private GITHUB_TOKEN secret.'
       : 'GitHub could not commit this file. Please try again.', 502)
   }
-  const publicPath = `/${key.slice('public/'.length)}`
-  const asset: MediaAsset = { id: key, name, url: publicPath, kind, mimeType: mime, size: bytes.byteLength }
+  const immediateUrl = payload.content?.download_url
+    || `https://raw.githubusercontent.com/${repository}/${env.GITHUB_BRANCH || 'main'}/${key.split('/').map(encodeURIComponent).join('/')}`
+  const asset: MediaAsset = { id: key, name, url: immediateUrl, kind, mimeType: mime, size: bytes.byteLength }
   return json({ asset }, 201)
 }
 
