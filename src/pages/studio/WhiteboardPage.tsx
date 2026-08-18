@@ -110,6 +110,7 @@ export function WhiteboardPage() {
   const saveTimer = useRef<number | undefined>(undefined)
   const saveVersion = useRef(0)
   const [boards, setBoards] = useState<WhiteboardBoard[]>([])
+  const boardsRef = useRef<WhiteboardBoard[]>([])
   const [activeId, setActiveId] = useState('')
   const [activePageId, setActivePageId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -147,6 +148,8 @@ export function WhiteboardPage() {
   const displayWidth = (page?.orientation === 'landscape' ? BOARD_HEIGHT : BOARD_WIDTH) * paperFactor * zoom / 100
   const displayHeight = (page?.orientation === 'landscape' ? BOARD_WIDTH : BOARD_HEIGHT) * paperFactor * zoom / 100
 
+  useEffect(() => { boardsRef.current = boards }, [boards])
+
   useEffect(() => {
     if (!session?.authenticated) return
     adminApi.whiteboards().then(async ({ boards: loaded }) => {
@@ -167,10 +170,12 @@ export function WhiteboardPage() {
     context.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
     const repaint = () => { context.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT); page.strokes.forEach((stroke) => drawStroke(context, stroke)) }
     repaint()
+    const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? imageCache.get(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
+    pendingImages.forEach((image) => image.addEventListener('load', repaint, { once: true }))
     const selected = page.strokes.find((stroke) => stroke.id === selectedId)
     if (selected?.points[0]) { const width = selected.width || Math.max(120, (selected.text?.length || 1) * (selected.fontSize || selected.size || 36) * .55); const height = selected.height || Math.max(60, (selected.text?.split('\n').length || 1) * (selected.fontSize || selected.size || 36) * 1.3); context.save(); context.strokeStyle = '#bd5d87'; context.lineWidth = 3; context.setLineDash([12, 8]); context.strokeRect(selected.points[0].x - 8, selected.points[0].y - 8, width + 16, height + 16); context.restore() }
     const animation = page.strokes.some((stroke) => stroke.tool === 'image' && stroke.imageUrl?.toLowerCase().includes('.gif')) ? window.setInterval(repaint, 80) : 0
-    return () => { if (animation) window.clearInterval(animation) }
+    return () => { if (animation) window.clearInterval(animation); pendingImages.forEach((image) => image.removeEventListener('load', repaint)) }
   }, [page, selectedId])
 
   useEffect(() => {
@@ -384,8 +389,18 @@ export function WhiteboardPage() {
       let imported: WhiteboardPageData
       if (file.type.startsWith('image/')) {
         setUploadingImage(true)
+        const previewUrl = URL.createObjectURL(file)
+        imported = { id: newId('page'), name: file.name.replace(/\.[^.]+$/, '') || 'Imported page', background: 'plain', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: board.pages[0]?.accentColour || '#bd5d87', strokes: [{ id: newId('image'), tool: 'image', colour: '#000000', size: 1, points: [{ x: 40, y: 40, pressure: .5 }], imageUrl: previewUrl, width: 1160, height: 1640 }] }
+        const optimistic = { ...board, pages: [...board.pages, imported], updatedAt: new Date().toISOString() }
+        boardsRef.current = boardsRef.current.map((candidate) => candidate.id === board.id ? optimistic : candidate)
+        setBoards(boardsRef.current); setActivePageId(imported.id); setPast([]); setFuture([]); setError('')
         const { asset } = await adminApi.upload(file)
-        imported = { id: newId('page'), name: file.name.replace(/\.[^.]+$/, '') || 'Imported page', background: 'plain', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: board.pages[0]?.accentColour || '#bd5d87', strokes: [{ id: newId('image'), tool: 'image', colour: '#000000', size: 1, points: [{ x: 40, y: 40, pressure: .5 }], imageUrl: asset.url, width: 1160, height: 1640 }] }
+        imageCache.delete(previewUrl); URL.revokeObjectURL(previewUrl)
+        const latest = boardsRef.current.find((candidate) => candidate.id === board.id) || optimistic
+        const next = { ...latest, pages: latest.pages.map((candidate) => candidate.id === imported.id ? { ...candidate, strokes: candidate.strokes.map((stroke) => stroke.imageUrl === previewUrl ? { ...stroke, imageUrl: asset.url } : stroke) } : candidate), updatedAt: new Date().toISOString() }
+        boardsRef.current = boardsRef.current.map((candidate) => candidate.id === board.id ? next : candidate)
+        setBoards(boardsRef.current); void saveBoard(next)
+        return
       } else {
         const payload = JSON.parse(await file.text()) as { format?: string; page?: WhiteboardPageData } | WhiteboardPageData
         const candidate = 'page' in payload && payload.page ? payload.page : payload as WhiteboardPageData
