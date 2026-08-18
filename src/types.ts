@@ -182,7 +182,7 @@ export interface StudyHubData {
   reflections: StudyReflection[]
 }
 
-export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text' | 'line' | 'arrow' | 'note' | 'link' | 'image' | 'select'
+export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text' | 'line' | 'arrow' | 'circle' | 'rectangle' | 'note' | 'link' | 'image' | 'select'
 export type WhiteboardBackground = 'plain' | 'grid' | 'lined' | 'dots' | 'margin' | 'cornell' | 'checklist'
 
 export interface WhiteboardPoint { x: number; y: number; pressure: number }
@@ -211,10 +211,11 @@ export interface WhiteboardPageData {
   name: string
   background: WhiteboardBackground
   paperSize?: 'a4' | 'a3' | 'letter'
+  pageScale?: number
   orientation?: 'portrait' | 'landscape'
   accentColour?: string
   rulingSize?: number
-  coverStyle?: 'blossom' | 'clinical' | 'night' | 'strawberry' | 'minimal'
+  coverStyle?: 'blossom' | 'clinical' | 'night' | 'strawberry' | 'minimal' | 'sakura' | 'space' | 'cat'
   strokes: WhiteboardStroke[]
 }
 
