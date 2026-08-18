@@ -45,8 +45,10 @@ export function PublicNotebooksPage() {
   useEffect(() => {
     const context = canvasRef.current?.getContext('2d'); if (!context || !page) return
     const repaint = () => { context.clearRect(0, 0, WIDTH, HEIGHT); page.strokes.forEach((stroke) => drawStroke(context, stroke)) }; repaint()
+    const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? imageCache.get(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
+    pendingImages.forEach((image) => image.addEventListener('load', repaint, { once: true }))
     const animation = page.strokes.some((stroke) => stroke.tool === 'image' && stroke.imageUrl?.toLowerCase().includes('.gif')) ? window.setInterval(repaint, 80) : 0
-    return () => { if (animation) window.clearInterval(animation) }
+    return () => { if (animation) window.clearInterval(animation); pendingImages.forEach((image) => image.removeEventListener('load', repaint)) }
   }, [page])
 
   function openBoard(id: string) { setBoardId(id); setPageIndex(0) }
