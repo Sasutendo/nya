@@ -424,7 +424,7 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
   for (const stroke of value) {
     if (!stroke || typeof stroke !== 'object') return false
     const candidate = stroke as Record<string, unknown>
-    if (!['pen', 'highlighter', 'eraser', 'text', 'line', 'arrow', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
+    if (!['pen', 'highlighter', 'eraser', 'text', 'line', 'arrow', 'circle', 'rectangle', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < .5 || candidate.size > 100) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
     if (candidate.tool === 'text' || candidate.tool === 'note' || candidate.tool === 'link') {
