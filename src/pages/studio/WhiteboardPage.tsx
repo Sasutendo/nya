@@ -15,6 +15,27 @@ const BOARD_HEIGHT = 1754
 const colours = ['#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0', '#477f91', '#62a6c0', '#5d8b6b', '#89b989', '#d28155', '#d54f68', '#f0c44f', '#8b6b55', '#68707d']
 const imageCache = new Map<string, HTMLImageElement>()
 
+function prepareBoardForSave(board: WhiteboardBoard): WhiteboardBoard {
+  return {
+    ...board,
+    pages: board.pages.map((page) => ({
+      ...page,
+      strokes: page.strokes.map((stroke) => {
+        if (!['pen', 'highlighter', 'eraser'].includes(stroke.tool) || stroke.points.length < 3) return stroke
+        const kept = [stroke.points[0]]
+        for (let index = 1; index < stroke.points.length - 1; index += 1) {
+          const point = stroke.points[index]
+          const previous = kept[kept.length - 1]
+          if (Math.hypot(point.x - previous.x, point.y - previous.y) >= 1.25) kept.push(point)
+        }
+        kept.push(stroke.points[stroke.points.length - 1])
+        const points = kept.map((point) => ({ x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10, pressure: Math.round(point.pressure * 100) / 100 }))
+        return { ...stroke, points }
+      }),
+    })),
+  }
+}
+
 function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
   if (!stroke.points.length) return
   context.save()
@@ -76,6 +97,8 @@ export function WhiteboardPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const activeStroke = useRef<WhiteboardStroke | null>(null)
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const pendingSaves = useRef(new Map<string, WhiteboardBoard>())
+  const saveTimer = useRef<number | undefined>(undefined)
   const saveVersion = useRef(0)
   const [boards, setBoards] = useState<WhiteboardBoard[]>([])
   const [activeId, setActiveId] = useState('')
@@ -142,13 +165,22 @@ export function WhiteboardPage() {
 
   const saveBoard = useCallback((next: WhiteboardBoard) => {
     const version = ++saveVersion.current
+    pendingSaves.current.set(next.id, next)
     setSaveState('saving')
-    saveQueue.current = saveQueue.current.catch(() => undefined).then(() => adminApi.saveWhiteboard(next)).then(() => {
-      if (version === saveVersion.current) setSaveState('saved')
-    }).catch((reason) => {
-      if (version === saveVersion.current) setSaveState('unsaved')
-      setError(reason instanceof Error ? reason.message : 'The board could not be saved.')
-    })
+    if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => {
+      const batch = [...pendingSaves.current.values()]
+      pendingSaves.current.clear()
+      saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+        for (const candidate of batch) await adminApi.saveWhiteboard(prepareBoardForSave(candidate))
+      }).then(() => {
+        if (version === saveVersion.current && pendingSaves.current.size === 0) { setSaveState('saved'); setError('') }
+      }).catch((reason) => {
+        batch.forEach((candidate) => { if (!pendingSaves.current.has(candidate.id)) pendingSaves.current.set(candidate.id, candidate) })
+        if (version === saveVersion.current) setSaveState('unsaved')
+        setError(reason instanceof Error ? reason.message : 'The board could not be saved.')
+      })
+    }, 550)
     return saveQueue.current
   }, [])
 
