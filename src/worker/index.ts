@@ -465,7 +465,7 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
   const strokesJson = JSON.stringify(body.pages)
   const published = body.published ? 1 : 0
   const sortOrder = typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder) ? Math.max(0, Math.floor(body.sortOrder)) : 0
-  if (strokesJson.length > 3_000_000) return error('This board is too large. Start a fresh board or remove a few strokes.', 413)
+  if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {

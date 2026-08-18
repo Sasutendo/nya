@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowUpRight, Bold, Check, Download, Eraser, Eye, EyeOff, FilePlus2, Highlighter, ImagePlus, Italic, Link2, LoaderCircle, Maximize2, Minus, MousePointer2, PenLine,
+  ArrowUpRight, Bold, Check, Download, Eraser, Eye, EyeOff, FilePlus2, FileUp, Highlighter, ImagePlus, Italic, Link2, LoaderCircle, Maximize2, Minus, MousePointer2, PenLine,
   Plus, Redo2, RotateCcw, Save, Search, Sparkles, StickyNote, TextCursorInput, Trash2, Underline, Undo2, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
@@ -14,6 +14,27 @@ const BOARD_WIDTH = 1240
 const BOARD_HEIGHT = 1754
 const colours = ['#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0', '#477f91', '#62a6c0', '#5d8b6b', '#89b989', '#d28155', '#d54f68', '#f0c44f', '#8b6b55', '#68707d']
 const imageCache = new Map<string, HTMLImageElement>()
+
+function prepareBoardForSave(board: WhiteboardBoard): WhiteboardBoard {
+  return {
+    ...board,
+    pages: board.pages.map((page) => ({
+      ...page,
+      strokes: page.strokes.map((stroke) => {
+        if (!['pen', 'highlighter', 'eraser'].includes(stroke.tool) || stroke.points.length < 3) return stroke
+        const kept = [stroke.points[0]]
+        for (let index = 1; index < stroke.points.length - 1; index += 1) {
+          const point = stroke.points[index]
+          const previous = kept[kept.length - 1]
+          if (Math.hypot(point.x - previous.x, point.y - previous.y) >= 1.25) kept.push(point)
+        }
+        kept.push(stroke.points[stroke.points.length - 1])
+        const points = kept.map((point) => ({ x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10, pressure: Math.round(point.pressure * 100) / 100 }))
+        return { ...stroke, points }
+      }),
+    })),
+  }
+}
 
 function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
   if (!stroke.points.length) return
@@ -72,10 +93,13 @@ export function WhiteboardPage() {
   const session = useStudioSession()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const pageInputRef = useRef<HTMLInputElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const activeStroke = useRef<WhiteboardStroke | null>(null)
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const pendingSaves = useRef(new Map<string, WhiteboardBoard>())
+  const saveTimer = useRef<number | undefined>(undefined)
   const saveVersion = useRef(0)
   const [boards, setBoards] = useState<WhiteboardBoard[]>([])
   const [activeId, setActiveId] = useState('')
@@ -142,13 +166,22 @@ export function WhiteboardPage() {
 
   const saveBoard = useCallback((next: WhiteboardBoard) => {
     const version = ++saveVersion.current
+    pendingSaves.current.set(next.id, next)
     setSaveState('saving')
-    saveQueue.current = saveQueue.current.catch(() => undefined).then(() => adminApi.saveWhiteboard(next)).then(() => {
-      if (version === saveVersion.current) setSaveState('saved')
-    }).catch((reason) => {
-      if (version === saveVersion.current) setSaveState('unsaved')
-      setError(reason instanceof Error ? reason.message : 'The board could not be saved.')
-    })
+    if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => {
+      const batch = [...pendingSaves.current.values()]
+      pendingSaves.current.clear()
+      saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+        for (const candidate of batch) await adminApi.saveWhiteboard(prepareBoardForSave(candidate))
+      }).then(() => {
+        if (version === saveVersion.current && pendingSaves.current.size === 0) { setSaveState('saved'); setError('') }
+      }).catch((reason) => {
+        batch.forEach((candidate) => { if (!pendingSaves.current.has(candidate.id)) pendingSaves.current.set(candidate.id, candidate) })
+        if (version === saveVersion.current) setSaveState('unsaved')
+        setError(reason instanceof Error ? reason.message : 'The board could not be saved.')
+      })
+    }, 550)
     return saveQueue.current
   }, [])
 
@@ -310,6 +343,37 @@ export function WhiteboardPage() {
     const link = document.createElement('a'); link.download = `${board.title}-${page.name}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.png'; link.href = output.toDataURL('image/png'); link.click()
   }
 
+  function exportPageFile() {
+    if (!board || !page) return
+    const blob = new Blob([JSON.stringify({ format: 'nya-page-v1', page }, null, 2)], { type: 'application/json' })
+    const link = document.createElement('a')
+    link.download = `${board.title}-${page.name}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.nya-page.json'
+    link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(link.href)
+  }
+
+  async function importPageFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !board) return
+    try {
+      let imported: WhiteboardPageData
+      if (file.type.startsWith('image/')) {
+        setUploadingImage(true)
+        const { asset } = await adminApi.upload(file)
+        imported = { id: newId('page'), name: file.name.replace(/\.[^.]+$/, '') || 'Imported page', background: 'plain', paperSize: 'a4', orientation: 'portrait', accentColour: board.pages[0]?.accentColour || '#bd5d87', strokes: [{ id: newId('image'), tool: 'image', colour: '#253a35', size: 1, points: [{ x: 40, y: 40, pressure: .5 }], imageUrl: asset.url, width: 1160, height: 1640 }] }
+      } else {
+        const payload = JSON.parse(await file.text()) as { format?: string; page?: WhiteboardPageData } | WhiteboardPageData
+        const candidate = 'page' in payload && payload.page ? payload.page : payload as WhiteboardPageData
+        if (!candidate || !Array.isArray(candidate.strokes) || !['plain', 'grid', 'lined', 'dots', 'margin', 'cornell', 'checklist'].includes(candidate.background)) throw new Error('This is not a valid Nya notebook page file.')
+        imported = { ...candidate, id: newId('page'), name: `${candidate.name || 'Imported page'} (imported)`, strokes: candidate.strokes.map((stroke) => ({ ...stroke, id: newId(stroke.tool) })) }
+      }
+      const next = { ...board, pages: [...board.pages, imported], updatedAt: new Date().toISOString() }
+      setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); setActivePageId(imported.id); setPast([]); setFuture([]); setError(''); void saveBoard(next)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The page could not be imported.')
+    } finally { setUploadingImage(false) }
+  }
+
   if (session === undefined || (session?.authenticated && loading)) return <div className="page-shell section-shell"><LoadingState label="Opening the whiteboard…" /></div>
   if (!session?.authenticated) return <Navigate to="/studio/login" state={{ from: '/studio/whiteboard' }} replace />
 
@@ -332,7 +396,7 @@ export function WhiteboardPage() {
           <button type="button" className={board.published ? 'publish-board-button is-published' : 'publish-board-button'} onClick={() => updateBoard({ published: !board.published })}>{board.published ? <Eye size={16} /> : <EyeOff size={16} />}{board.published ? 'Public' : 'Private'}</button>
           <button type="button" onClick={exportPng}><Download size={16} />PNG</button><button type="button" className="danger" onClick={() => setConfirmDelete('board')}><Trash2 size={16} /></button>
         </div>
-        <div className="whiteboard-pages"><div>{board.pages.map((candidate, index) => <button key={candidate.id} type="button" draggable className={candidate.id === page.id ? 'is-active' : ''} onDragStart={(event) => event.dataTransfer.setData('application/x-nya-page', JSON.stringify({ boardId: board.id, pageId: candidate.id, title: `${board.title} — ${candidate.name}` }))} onClick={() => { setActivePageId(candidate.id); setPast([]); setFuture([]) }}>{index + 1}<span>{candidate.name}</span></button>)}</div><button type="button" onClick={addPage}><FilePlus2 size={15} />Add page</button><button type="button" onClick={() => setConfirmDelete('page')} disabled={board.pages.length === 1} aria-label="Delete current page"><Trash2 size={15} /></button></div>
+        <div className="whiteboard-pages"><div>{board.pages.map((candidate, index) => <button key={candidate.id} type="button" draggable className={candidate.id === page.id ? 'is-active' : ''} onDragStart={(event) => event.dataTransfer.setData('application/x-nya-page', JSON.stringify({ boardId: board.id, pageId: candidate.id, title: `${board.title} — ${candidate.name}` }))} onClick={() => { setActivePageId(candidate.id); setPast([]); setFuture([]) }}>{index + 1}<span>{candidate.name}</span></button>)}</div><button type="button" onClick={addPage}><FilePlus2 size={15} />Add page</button><button type="button" onClick={() => pageInputRef.current?.click()} disabled={uploadingImage}><FileUp size={15} />Import</button><input ref={pageInputRef} hidden type="file" accept="application/json,.json,image/*" onChange={importPageFile} /><button type="button" onClick={exportPageFile} title="Export this page as a reusable file"><Download size={15} />Page file</button><button type="button" onClick={() => setConfirmDelete('page')} disabled={board.pages.length === 1} aria-label="Delete current page"><Trash2 size={15} /></button></div>
         <div className="whiteboard-toolbar" role="toolbar" aria-label="Drawing tools">
           <div className="tool-group">{([['select', MousePointer2, 'Select / move'], ['pen', PenLine, 'Pen'], ['highlighter', Highlighter, 'Highlighter'], ['eraser', Eraser, 'Eraser'], ['line', Minus, 'Line'], ['arrow', ArrowUpRight, 'Arrow'], ['text', TextCursorInput, 'Text'], ['note', StickyNote, 'Note']] as const).map(([id, Icon, label]) => <button key={id} type="button" className={tool === id ? 'is-active' : ''} onClick={() => { setTool(id); setEditor(null) }} title={label}><Icon size={18} /><span>{label}</span></button>)}<button type="button" onClick={addLink} title="Add a website, board or presentation link"><Link2 size={18} /><span>Link</span></button><button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploadingImage} title="Import image"><ImagePlus size={18} /><span>{uploadingImage ? 'Uploading…' : 'Image'}</span></button><input ref={imageInputRef} hidden type="file" accept="image/*" onChange={importImage} /></div>
           <div className="colour-palette">{colours.map((value) => <button key={value} type="button" className={colour === value ? 'is-active' : ''} style={{ '--pen-colour': value } as React.CSSProperties} onClick={() => { setColour(value); if (tool === 'eraser') setTool('pen') }} aria-label={`Use ${value}`} />)}<label className="custom-pen-colour" title="Custom colour"><input type="color" value={colour} onChange={(event) => setColour(event.target.value)} /></label></div>

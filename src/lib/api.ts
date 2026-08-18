@@ -29,14 +29,29 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
-    ...init,
-    headers: {
-      ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...init?.headers,
-    },
-  })
+  const method = (init?.method || 'GET').toUpperCase()
+  const attempts = method === 'GET' || method === 'PUT' ? 3 : 1
+  let response: Response | undefined
+  let networkError: unknown
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      response = await fetch(path, {
+        credentials: 'same-origin',
+        ...init,
+        headers: {
+          ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+          ...init?.headers,
+        },
+      })
+      if (response.ok || response.status < 500 || attempt === attempts - 1) break
+    } catch (reason) {
+      networkError = reason
+      if (attempt === attempts - 1) throw reason
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 450 * (attempt + 1)))
+  }
+
+  if (!response) throw networkError instanceof Error ? networkError : new ApiError('The server could not be reached.', 0)
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: 'Something went wrong.' })) as { error?: string }
