@@ -13,7 +13,7 @@ Nya Yuuki’s Learning Corner brings presentations, study notes, practical proje
 - **Git-backed media** — owner uploads are committed to the repository, then included automatically in Cloudflare's next deployment
 - **Study journey** — a read-only public overview of completed work and learning topics
 - **Private study hub** — flashcards, focus sessions, skill tracking and reflections for the owner
-- **Notebook studio** — full-page A4/A3/Letter paper in portrait or landscape, adjustable ruling and grid spacing, pressure-aware pen, highlighter, visible eraser and selection tools, arrows, movable/resizable underlined text, sticky notes, links to sites/presentations/notebooks, GitHub-backed image and animated GIF imports, pinch zoom, swipe page turning, sortable coloured notebooks, undo/redo and PNG export; published notebooks automatically appear as read-only projects
+- **Offline notebook studio** — installable tablet app with locally saved pages and automatic reconnect syncing; full-page A4/A3/Letter paper, custom page scaling, adjustable ruling and grids, pressure-aware pen, highlighter, eraser, selection, lines, arrows, circles, rectangles, movable text, sticky notes, links, page/image imports, pinch zoom, swipe page turning, cover designs, undo/redo and exports; published notebooks automatically appear as read-only projects
 - **Unified search** — search published notes, presentations, projects and notebook text from the home page or dedicated search corner, with an optional keyless internet lookup that displays results inside the site
 - **Planning tools** — public milestones plus a private calendar, tasks and sticky notes
 - **Personal settings** — profile GIF and site copy saved privately through the owner studio

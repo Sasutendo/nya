@@ -151,6 +151,14 @@ export function WhiteboardPage() {
   useEffect(() => { boardsRef.current = boards }, [boards])
 
   useEffect(() => {
+    const savedOffline = () => setSaveState('unsaved')
+    const sync = () => { setSaveState('saving'); adminApi.syncWhiteboards().then(() => { setSaveState('saved'); setError('') }).catch((reason) => { setSaveState('unsaved'); setError(reason instanceof Error ? reason.message : 'Offline pages could not sync yet.') }) }
+    window.addEventListener('nya-offline-save', savedOffline)
+    window.addEventListener('online', sync)
+    return () => { window.removeEventListener('nya-offline-save', savedOffline); window.removeEventListener('online', sync) }
+  }, [])
+
+  useEffect(() => {
     if (!session?.authenticated) return
     adminApi.whiteboards().then(async ({ boards: loaded }) => {
       if (loaded.length) { setBoards(loaded); setActiveId(loaded[0].id); setActivePageId(loaded[0].pages[0]?.id || ''); return }
@@ -199,7 +207,7 @@ export function WhiteboardPage() {
       saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
         for (const candidate of batch) await adminApi.saveWhiteboard(prepareBoardForSave(candidate))
       }).then(() => {
-        if (version === saveVersion.current && pendingSaves.current.size === 0) { setSaveState('saved'); setError('') }
+        if (version === saveVersion.current && pendingSaves.current.size === 0) { setSaveState(navigator.onLine ? 'saved' : 'unsaved'); setError('') }
       }).catch((reason) => {
         batch.forEach((candidate) => { if (!pendingSaves.current.has(candidate.id)) pendingSaves.current.set(candidate.id, candidate) })
         if (version === saveVersion.current) setSaveState('unsaved')
@@ -432,7 +440,7 @@ export function WhiteboardPage() {
           <input className="whiteboard-page-name" value={page.name} onChange={(event) => setBoards((current) => current.map((candidate) => candidate.id === board.id ? { ...candidate, pages: candidate.pages.map((item) => item.id === page.id ? { ...item, name: event.target.value } : item) } : candidate))} onBlur={() => updatePage({ name: page.name.trim() || 'Untitled page' })} aria-label="Current page name" />
           <label className="board-colour-picker" title="Board colour"><input type="color" value={board.pages[0]?.accentColour || '#bd5d87'} onChange={(event) => { const accentColour = event.target.value; updateBoard({ pages: board.pages.map((item) => ({ ...item, accentColour })) }) }} /></label>
           <select className="board-cover-select" value={board.pages[0]?.coverStyle || 'blossom'} onChange={(event) => { const coverStyle = event.target.value as WhiteboardPageData['coverStyle']; updateBoard({ pages: board.pages.map((item) => ({ ...item, coverStyle })) }) }} aria-label="Notebook cover"><option value="blossom">🌸 Blossom cover</option><option value="clinical">✚ Clinical cover</option><option value="night">✦ Night study cover</option><option value="strawberry">🍓 Strawberry cover</option><option value="sakura">🌸 Sakura sky</option><option value="space">🌙 Cozy space</option><option value="cat">🐾 Sleepy cat</option><option value="minimal">Minimal cover</option></select>
-          <span className={`whiteboard-save-state is-${saveState}`}>{saveState === 'saving' ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}{saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Not saved'}</span>
+          <span className={`whiteboard-save-state is-${saveState}`}>{saveState === 'saving' ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}{saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving…' : navigator.onLine ? 'Not saved' : 'Saved offline'}</span>
           <button type="button" className={board.published ? 'publish-board-button is-published' : 'publish-board-button'} onClick={() => updateBoard({ published: !board.published })}>{board.published ? <Eye size={16} /> : <EyeOff size={16} />}{board.published ? 'Public' : 'Private'}</button>
           <button type="button" onClick={exportPng}><Download size={16} />PNG</button><button type="button" className="danger" onClick={() => setConfirmDelete('board')}><Trash2 size={16} /></button>
         </div>

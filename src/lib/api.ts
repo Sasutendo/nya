@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
 import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
 import { DEMO_NURSING_SKILLS, DEMO_STUDY_CARDS, DEMO_STUDY_REFLECTIONS } from './demo-study'
+import { cacheWhiteboards, cachedWhiteboards, pendingWhiteboards, queueWhiteboardWrite, removePendingWhiteboard } from './offline-whiteboards'
 import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
@@ -17,6 +18,7 @@ const LOCAL_REFLECTIONS_KEY = 'nya-local-reflections-v1'
 const LOCAL_WHITEBOARDS_KEY = 'nya-local-whiteboards-v1'
 const LOCAL_VIEW_PREFIX = 'nya-local-viewed-v1:'
 const SETTINGS_CHANNEL = 'nya-settings-sync-v1'
+const OFFLINE_OWNER_SESSION_KEY = 'nya-offline-owner-session-v1'
 const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true'
 
 class ApiError extends Error {
@@ -330,7 +332,16 @@ export const authApi = {
         setupRequired,
       }
     }
-    return request<SessionState>('/api/auth/session')
+    try {
+      const session = await request<SessionState>('/api/auth/session')
+      if (session.authenticated) localStorage.setItem(OFFLINE_OWNER_SESSION_KEY, JSON.stringify(session))
+      else localStorage.removeItem(OFFLINE_OWNER_SESSION_KEY)
+      return session
+    } catch (reason) {
+      const cached = localStorage.getItem(OFFLINE_OWNER_SESSION_KEY)
+      if (!navigator.onLine && cached) return JSON.parse(cached) as SessionState
+      throw reason
+    }
   },
   login: async (email: string, password: string): Promise<SessionState> => {
     if (LOCAL_DEMO) {
@@ -341,7 +352,9 @@ export const authApi = {
       localStorage.setItem(LOCAL_SESSION_KEY, 'true')
       return { authenticated: true, email: savedEmail, setupRequired: false }
     }
-    return request<SessionState>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    const session = await request<SessionState>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    if (session.authenticated) localStorage.setItem(OFFLINE_OWNER_SESSION_KEY, JSON.stringify(session))
+    return session
   },
   setupLocalPassword: async (email: string, password: string): Promise<SessionState> => {
     if (!LOCAL_DEMO) throw new ApiError('Local password setup is not available on the published site.', 404)
@@ -349,12 +362,31 @@ export const authApi = {
     return { authenticated: true, email: email.trim().toLowerCase(), setupRequired: false }
   },
   logout: async (): Promise<{ ok: true }> => {
+    localStorage.removeItem(OFFLINE_OWNER_SESSION_KEY)
     if (LOCAL_DEMO) {
       localStorage.removeItem(LOCAL_SESSION_KEY)
       return { ok: true }
     }
     return request<{ ok: true }>('/api/auth/logout', { method: 'POST', body: '{}' })
   },
+}
+
+async function flushOfflineWhiteboards(): Promise<void> {
+  if (!navigator.onLine) return
+  for (const pending of await pendingWhiteboards()) {
+    try {
+      const path = `/api/admin/whiteboards${pending.create ? '' : `/${pending.board.id}`}`
+      await request<{ board: WhiteboardBoard }>(path, { method: pending.create ? 'POST' : 'PUT', body: JSON.stringify(pending.board) })
+      await removePendingWhiteboard(pending.id)
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 404 && !pending.create) {
+        await request<{ board: WhiteboardBoard }>('/api/admin/whiteboards', { method: 'POST', body: JSON.stringify(pending.board) })
+        await removePendingWhiteboard(pending.id)
+        continue
+      }
+      throw reason
+    }
+  }
 }
 
 export const adminApi = {
@@ -496,7 +528,24 @@ export const adminApi = {
   },
   whiteboards: async (): Promise<{ boards: WhiteboardBoard[] }> => {
     if (LOCAL_DEMO) return { boards: readLocalWhiteboards() }
-    return request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
+    if (!navigator.onLine) {
+      const cached = await cachedWhiteboards(); const pending = await pendingWhiteboards(); const merged = [...cached]
+      pending.forEach(({ board }) => { const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
+      return { boards: merged }
+    }
+    try {
+      await flushOfflineWhiteboards()
+      const result = await request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
+      await cacheWhiteboards(result.boards)
+      return result
+    } catch (reason) {
+      const cached = await cachedWhiteboards()
+      const pending = await pendingWhiteboards()
+      const merged = [...cached]
+      pending.forEach(({ board }) => { const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
+      if (merged.length) return { boards: merged }
+      throw reason
+    }
   },
   saveWhiteboard: async (board: WhiteboardBoard, create = false): Promise<{ board: WhiteboardBoard }> => {
     if (LOCAL_DEMO) {
@@ -506,8 +555,23 @@ export const adminApi = {
       writeLocalCollection(LOCAL_WHITEBOARDS_KEY, exists ? boards.map((candidate) => candidate.id === board.id ? saved : candidate) : [saved, ...boards])
       return { board: saved }
     }
-    return request<{ board: WhiteboardBoard }>(`/api/admin/whiteboards${create ? '' : `/${board.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(board) })
+    if (!navigator.onLine) {
+      await queueWhiteboardWrite(board, create)
+      window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: board.id } }))
+      return { board }
+    }
+    try {
+      const result = await request<{ board: WhiteboardBoard }>(`/api/admin/whiteboards${create ? '' : `/${board.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(board) })
+      await cacheWhiteboards([result.board])
+      return result
+    } catch (reason) {
+      if (navigator.onLine && reason instanceof ApiError && reason.status > 0 && reason.status < 500) throw reason
+      await queueWhiteboardWrite(board, create)
+      window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: board.id } }))
+      return { board }
+    }
   },
+  syncWhiteboards: async (): Promise<void> => { await flushOfflineWhiteboards() },
   removeWhiteboard: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_WHITEBOARDS_KEY, readLocalWhiteboards().filter((board) => board.id !== id)); return { ok: true } }
     return request<{ ok: true }>(`/api/admin/whiteboards/${id}`, { method: 'DELETE' })

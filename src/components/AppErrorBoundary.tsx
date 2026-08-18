@@ -12,11 +12,11 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
   async recover() {
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations().catch(() => [])
-      await Promise.all(registrations.map((registration) => registration.unregister()))
+      await Promise.all(registrations.map((registration) => registration.update()))
     }
     if ('caches' in window) {
       const keys = await caches.keys().catch(() => [])
-      await Promise.all(keys.map((key) => caches.delete(key)))
+      await Promise.all(keys.filter((key) => key.includes('runtime')).map((key) => caches.delete(key)))
     }
     window.location.reload()
   }
@@ -24,7 +24,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
   render() {
     if (!this.state.error) return this.props.children
     return <main className="app-crash-screen">
-      <div><span>♡</span><p>tiny technical pause</p><h1>The corner needs a quick refresh.</h1><p>An older saved website file or a temporary browser error stopped this page from opening.</p><button type="button" onClick={() => void this.recover()}>Clear saved site files and reload</button><details><summary>Technical detail</summary><code>{this.state.error.message}</code></details></div>
+      <div><span>♡</span><p>tiny technical pause</p><h1>The corner needs a quick refresh.</h1><p>A saved website file or a temporary browser error stopped this page from opening. Offline notebook data will stay protected.</p><button type="button" onClick={() => void this.recover()}>Refresh app files</button><details><summary>Technical detail</summary><code>{this.state.error.message}</code></details></div>
     </main>
   }
 }

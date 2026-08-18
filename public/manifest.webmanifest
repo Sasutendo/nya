@@ -1,9 +1,12 @@
 {
   "name": "Nya Yuuki's Learning Corner",
   "short_name": "Nya",
-  "description": "Präsentationen, Lernnotizen und Projekte aus der Pflegeausbildung.",
+  "description": "Offlinefähige Präsentationen, Lernnotizen und Projekte aus der Pflegeausbildung.",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "scope": "/",
+  "orientation": "any",
   "background_color": "#faeef2",
   "theme_color": "#7b4d61",
   "icons": [
