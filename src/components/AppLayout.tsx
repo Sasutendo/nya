@@ -20,6 +20,7 @@ export function AppLayout() {
   const languageTaps = useRef(0)
   const clockTaps = useRef(0)
   const titleTaps = useRef(0)
+  const quietWorkspace = location.pathname.startsWith('/notebooks') || location.pathname.startsWith('/studio')
 
   function tapBrand() {
     brandTaps.current += 1
@@ -115,7 +116,7 @@ export function AppLayout() {
         </div>
       </header>
 
-      <CutePageDecor />
+      {!quietWorkspace && <CutePageDecor />}
 
       <main id="main-content">
         <Outlet />
@@ -130,7 +131,7 @@ export function AppLayout() {
           <button type="button" className="footer-meta footer-code-trigger" onClick={tapCopyright}>© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</button>
         </div>
       </footer>
-      <EasterEggs ownerName={settings.ownerName} />
+      {!quietWorkspace && <EasterEggs ownerName={settings.ownerName} />}
     </div>
   )
 }

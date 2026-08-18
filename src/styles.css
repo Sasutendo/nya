@@ -1476,6 +1476,81 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
   .editor-footer .button { width: 100%; }
 }
 
+/* Compact, touch-first phone layout. Keep the personality without letting it
+   compete with the actual learning content. */
+@media (max-width: 520px) {
+  .section-shell, .header-inner, .footer-inner, .editor-page { width: min(calc(100% - 24px), var(--max)); }
+  .site-header { backdrop-filter: blur(22px); }
+  .header-inner { min-height: 62px; gap: 8px; }
+  .brand { min-width: 0; gap: 9px; }
+  .brand-avatar { width: 38px; border-radius: 12px; }
+  .brand-copy { min-width: 0; }
+  .brand-copy strong { display: block; overflow: hidden; max-width: 42vw; font-size: .82rem; white-space: nowrap; text-overflow: ellipsis; }
+  .header-actions { gap: 5px; }
+  .header-actions .icon-button, .language-toggle { width: 38px; min-width: 38px; min-height: 38px; border-radius: 11px; }
+  .language-toggle strong { font-size: .62rem; }
+
+  .page-ribbon, .corner-cat { display: none; }
+  .hero { gap: 28px; padding-block: 38px 38px; }
+  .hero-copy .eyebrow { max-width: 92%; margin-bottom: 14px; font-size: .62rem; line-height: 1.45; }
+  .hero-copy h1 { max-width: 100%; font-size: clamp(3.25rem, 16vw, 4.25rem); line-height: .88; letter-spacing: -.065em; text-wrap: pretty; }
+  .hero-intro { max-width: 36rem; margin: 20px 0 22px; font-family: Inter, ui-sans-serif, sans-serif; font-size: .94rem; line-height: 1.62; }
+  .hero-search { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; padding: 7px; border-radius: 17px; gap: 7px; }
+  .hero-search > svg { position: absolute; margin: 15px 0 0 13px; }
+  .hero-search input { grid-column: 1 / -1; width: 100%; min-height: 48px; padding: 0 12px 0 43px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.45); font-size: 16px; }
+  .hero-search button { width: 100%; height: 43px; padding-inline: 10px; }
+  .hero-search .web-search-button { gap: 5px; }
+  .profile-presence { grid-template-columns: 50px minmax(0, 1fr); margin-top: 14px; padding: 9px; border-radius: 15px; }
+  .profile-avatar-wrap { width: 50px; }
+  .profile-presence-copy strong { font-size: 1rem; }
+  .profile-presence > .owner-clock { min-height: 46px; }
+  .hero-note { align-items: flex-start; margin-top: 15px; font-size: .72rem; line-height: 1.5; }
+  .hero-stickers { display: none; }
+  .hero-preview { border-radius: 17px; }
+  .hero-preview .slide-canvas { padding: 21px; }
+  .hero-preview .slide-canvas h2, .hero-preview .slide-title h2 { font-size: clamp(1.55rem, 8vw, 2.2rem); }
+  .hero-preview .slide-body { max-width: 100%; font-size: .7rem; }
+  .preview-window-footer { padding-inline: 12px; }
+  .preview-window-footer > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .quick-link { min-height: 74px; border-radius: 15px; }
+  .content-card-link { grid-template-columns: 92px minmax(0, 1fr); }
+  .card-visual, .card-content { min-height: 158px; }
+  .card-content { padding: 14px; }
+  .card-content h3 { font-size: 1.08rem; }
+
+  .editor-page { padding-block: 26px calc(92px + env(safe-area-inset-bottom)); }
+  .editor-header { gap: 18px; margin-bottom: 18px; }
+  .editor-header .back-link { margin-bottom: 14px; }
+  .editor-header h1 { overflow: visible; font-size: clamp(2.25rem, 12vw, 3.2rem); line-height: .98; text-overflow: clip; }
+  .editor-save-group { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px; }
+  .editor-save-group select, .editor-save-group .button { width: 100%; min-width: 0; min-height: 46px; }
+  .editor-save-group .saved-label { justify-content: center; min-height: 28px; }
+  .editor-panel { margin-bottom: 12px; padding: 16px 13px; border-radius: 16px; }
+  .panel-heading { margin-bottom: 18px; padding-bottom: 14px; }
+  .panel-heading > div { display: grid; gap: 3px; }
+  .panel-heading h2 { font-size: 1.55rem; }
+  .panel-heading > p { font-size: .68rem; line-height: 1.5; }
+  .form-grid { gap: 13px; }
+  .form-grid input, .form-grid select, .form-grid textarea,
+  .project-fields input, .project-fields select, .project-fields textarea { min-height: 48px; font-size: 16px; }
+  .editor-tabs { position: sticky; top: 69px; z-index: 12; display: grid; grid-template-columns: 1fr 1fr; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: var(--shadow-sm); }
+  .editor-tabs button { min-height: 42px; border: 0; border-radius: 9px; font-size: .78rem; }
+  .editor-tabs span { display: none; }
+  .markdown-editor > textarea { min-height: 58vh; padding: 15px; border-radius: 11px; font-size: 16px; line-height: 1.65; resize: vertical; }
+  .editor-markdown-preview { min-height: 58vh; padding: 17px 14px; }
+  .asset-editor-list > div { grid-template-columns: 38px minmax(0, 1fr) 38px; gap: 8px; }
+  .asset-editor-list button { width: 38px; }
+  .slide-editor { gap: 12px; }
+  .slide-sidebar-list button { flex-basis: 132px; }
+  .slide-fields { padding-top: 4px; }
+  .slide-media-field { padding: 12px; }
+  .editor-footer { bottom: calc(6px + env(safe-area-inset-bottom)); margin-inline: -2px; padding: 8px; border-radius: 13px; }
+  .editor-footer .button { min-height: 48px; }
+  .settings-actions { align-items: stretch; flex-direction: column; }
+  .settings-actions .button { width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
