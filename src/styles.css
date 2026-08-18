@@ -1016,6 +1016,10 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .cover-night { --cover-accent:#8c7ac2; --cover-bg:linear-gradient(135deg,rgba(46,40,75,.9),rgba(58,43,64,.8)); }
 .cover-strawberry { --cover-accent:#e65372; --cover-bg:radial-gradient(circle at 85% 25%,rgba(255,255,255,.5) 0 3px,transparent 4px),linear-gradient(135deg,rgba(255,210,218,.9),rgba(255,239,221,.8)); }
 .cover-minimal { --cover-accent:#8a737c; --cover-bg:rgba(255,255,255,.55); }
+.cover-sakura { --cover-accent:#ef77aa; --cover-bg:radial-gradient(circle at 18% 24%,rgba(255,255,255,.8) 0 4px,transparent 5px),radial-gradient(circle at 78% 65%,rgba(255,215,234,.9) 0 6px,transparent 7px),linear-gradient(135deg,#ffd9e9,#dfe9ff); }
+.cover-space { --cover-accent:#b995ff; --cover-bg:radial-gradient(circle at 78% 25%,#fff 0 2px,transparent 3px),radial-gradient(circle at 25% 70%,#ffd7ef 0 2px,transparent 3px),linear-gradient(135deg,#30284f,#5c4165); }
+.cover-cat { --cover-accent:#dc87a9; --cover-bg:radial-gradient(ellipse at 75% 65%,rgba(255,255,255,.8) 0 12%,transparent 13%),linear-gradient(135deg,#f6d8e4,#e9d8ca); }
+.notebook-project-card[class*="cover-"] .card-visual { color:var(--cover-accent); background:var(--cover-bg); }
 .public-notebook-layout > aside button > span { display: grid; min-width: 0; gap: 3px; overflow: hidden; font-size: .66rem; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; }
 .public-notebook-layout > aside small { color: var(--ink-soft); font-size: .5rem; font-weight: 500; }
 .public-notebook-viewer { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,249,251,.72); box-shadow: var(--shadow-sm); }
