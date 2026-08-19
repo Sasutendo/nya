@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Search, Sun, X } from 'lucide-react'
+import { BookOpen, CalendarDays, FileText, FolderKanban, Gift, Languages, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Search, Sun, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
 import { classes } from '../lib/format'
@@ -128,7 +128,12 @@ export function AppLayout() {
             <span className="footer-mark" aria-hidden="true">N</span>
             <p><button type="button" className="footer-title-trigger" onClick={tapFooterTitle}>{settings.siteTitle}</button><br />{settings.footerNote}</p>
           </div>
-          <button type="button" className="footer-meta footer-code-trigger" onClick={tapCopyright}>© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</button>
+          <div className="footer-links">
+            <a className="footer-steam-link" href="https://store.steampowered.com/wishlist/id/Sasutendo/?sort=discount&st=10281845309481781812" target="_blank" rel="noreferrer">
+              <Gift size={15} aria-hidden="true" />{text('Steam wishlist', 'Steam-Wunschliste')}
+            </a>
+            <button type="button" className="footer-meta footer-code-trigger" onClick={tapCopyright}>© {new Date().getFullYear()} {settings.ownerName} · {text('Public to read, private to edit.', 'Öffentlich zum Lesen, privat zum Bearbeiten.')}</button>
+          </div>
         </div>
       </footer>
       {!quietWorkspace && <EasterEggs ownerName={settings.ownerName} />}
