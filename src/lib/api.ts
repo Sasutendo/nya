@@ -32,7 +32,7 @@ class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method || 'GET').toUpperCase()
-  const attempts = method === 'GET' || method === 'PUT' ? 3 : 1
+  const attempts = navigator.onLine && (method === 'GET' || method === 'PUT') ? 3 : 1
   let response: Response | undefined
   let networkError: unknown
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -298,13 +298,18 @@ export function watchSettings(onSettings: (settings: SiteSettings) => void): () 
     }
   }
 
-  const refresh = () => getSettings().then(deliver).catch(() => undefined)
+  const refresh = () => {
+    if (!navigator.onLine) return
+    getSettings().then(deliver).catch(() => undefined)
+  }
   const pollTimer = window.setInterval(refresh, 15_000)
   const onVisibility = () => { if (document.visibilityState === 'visible') refresh() }
+  window.addEventListener('online', refresh)
   document.addEventListener('visibilitychange', onVisibility)
   return () => {
     stopped = true
     window.clearInterval(pollTimer)
+    window.removeEventListener('online', refresh)
     document.removeEventListener('visibilitychange', onVisibility)
   }
 }
