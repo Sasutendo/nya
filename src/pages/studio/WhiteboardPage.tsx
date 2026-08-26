@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUpRight, Bold, Check, ChevronDown, ChevronRight, Circle, ClipboardPaste, Copy, Download, Eraser, Eye, EyeOff, FilePlus2, FileUp, FolderPlus, Highlighter, ImagePlus, Italic, LassoSelect, Link2, LoaderCircle, Maximize2, Minus, MousePointer2, PenLine,
-  Plus, Redo2, RotateCcw, Save, Scissors, Search, Sparkles, Square, StickyNote, TextCursorInput, Trash2, Underline, Undo2, X, ZoomIn, ZoomOut,
+  Lock, Plus, Redo2, RotateCcw, Save, Scissors, Search, Sparkles, Square, StickyNote, TextCursorInput, Trash2, Underline, Undo2, Unlock, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { ErrorNotice, LoadingState } from '../../components/Feedback'
@@ -14,6 +14,7 @@ import { StudioNav, useStudioSession } from './StudioPages'
 const BOARD_WIDTH = 1240
 const BOARD_HEIGHT = 1754
 const COLLAPSED_BOARDS_KEY = 'nya-collapsed-whiteboards-v1'
+const BOARD_ORDER_LOCK_KEY = 'nya-board-order-locked-v1'
 const colours = ['#000000', '#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0', '#477f91', '#62a6c0', '#5d8b6b', '#89b989', '#d28155', '#d54f68', '#f0c44f', '#8b6b55', '#68707d']
 const fontFamilies = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
 const imageCache = new Map<string, HTMLImageElement>()
@@ -190,6 +191,7 @@ export function WhiteboardPage() {
   const [future, setFuture] = useState<WhiteboardStroke[][]>([])
   const [draggedBoardId, setDraggedBoardId] = useState('')
   const [boardQuery, setBoardQuery] = useState('')
+  const [boardOrderLocked, setBoardOrderLocked] = useState(() => localStorage.getItem(BOARD_ORDER_LOCK_KEY) === 'true')
   const board = useMemo(() => boards.find((candidate) => candidate.id === activeId), [activeId, boards])
   const page = useMemo(() => board?.pages.find((candidate) => candidate.id === activePageId) || board?.pages[0], [activePageId, board])
   const visibleBoards = useMemo(() => flattenWhiteboardTree(boards, collapsedBoardIds, boardQuery), [boardQuery, boards, collapsedBoardIds])
@@ -206,6 +208,10 @@ export function WhiteboardPage() {
   useEffect(() => {
     try { localStorage.setItem(COLLAPSED_BOARDS_KEY, JSON.stringify([...collapsedBoardIds])) } catch { /* Collapsing remains available for this session. */ }
   }, [collapsedBoardIds])
+
+  useEffect(() => {
+    try { localStorage.setItem(BOARD_ORDER_LOCK_KEY, String(boardOrderLocked)) } catch { /* The lock still works for this session. */ }
+  }, [boardOrderLocked])
 
   useEffect(() => {
     const savedOffline = () => setSaveState('unsaved')
@@ -488,6 +494,7 @@ export function WhiteboardPage() {
   }
 
   function reorderBoards(targetId: string) {
+    if (boardOrderLocked) return
     if (!draggedBoardId || draggedBoardId === targetId) return
     const reordered = [...boards]; const from = reordered.findIndex((item) => item.id === draggedBoardId); const to = reordered.findIndex((item) => item.id === targetId); if (from < 0 || to < 0) return
     const [moved] = reordered.splice(from, 1); reordered.splice(to, 0, moved); const updatedAt = new Date().toISOString()
@@ -640,7 +647,7 @@ export function WhiteboardPage() {
     {error && <ErrorNotice message={error} />}
     <div className="whiteboard-layout">
       <aside className="whiteboard-sidebar">
-        <div><strong style={{ color: board?.pages[0]?.accentColour || '#bd5d87' }}>My boards</strong><button type="button" onClick={() => { void addBoard() }}><Plus size={15} />New</button></div>
+        <div><strong style={{ color: board?.pages[0]?.accentColour || '#bd5d87' }}>My boards</strong><button type="button" className={boardOrderLocked ? 'is-active' : ''} onClick={() => setBoardOrderLocked((value) => !value)} title={boardOrderLocked ? 'Unlock board sorting' : 'Lock the current board order'}>{boardOrderLocked ? <Lock size={15} /> : <Unlock size={15} />}{boardOrderLocked ? 'Locked' : 'Lock'}</button><button type="button" onClick={() => { void addBoard() }}><Plus size={15} />New</button></div>
         <label className="whiteboard-board-search"><Search size={15} /><input value={boardQuery} onChange={(event) => setBoardQuery(event.target.value)} placeholder="Search my notebooks…" /></label>
         <nav>{visibleBoards.map(({ board: candidate, depth, hasChildren, collapsed }) => <button key={candidate.id} type="button" draggable className={`${candidate.id === activeId ? 'is-active' : ''} ${candidate.id === draggedBoardId ? 'is-dragging' : ''} ${depth ? 'is-subboard' : ''} cover-${candidate.pages[0]?.coverStyle || 'blossom'}`} style={{ '--board-accent': candidate.pages[0]?.accentColour || '#bd5d87', '--board-depth': depth, '--cover-image': candidate.coverImage ? `url("${candidate.coverImage}")` : 'none' } as React.CSSProperties} onDragStart={(event) => { setDraggedBoardId(candidate.id); event.dataTransfer.setData('application/x-nya-board', JSON.stringify({ boardId: candidate.id, title: candidate.title })) }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropOnBoard(event, candidate.id)} onDragEnd={() => setDraggedBoardId('')} onClick={() => { setActiveId(candidate.id); setActivePageId(candidate.pages[0]?.id || ''); setSelectedIds([]); setPast([]); setFuture([]) }}>{depth > 0 ? <ChevronRight className="subboard-branch" size={14} aria-hidden="true" /> : <span className="board-drag-grip" aria-hidden="true">⠿</span>}{hasChildren && <span className="board-collapse-toggle" role="button" tabIndex={0} title={collapsed ? 'Show subboards' : 'Hide subboards'} aria-label={collapsed ? `Show subboards inside ${candidate.title}` : `Hide subboards inside ${candidate.title}`} aria-expanded={!collapsed} onClick={(event) => { event.stopPropagation(); toggleBoardCollapsed(candidate.id) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); toggleBoardCollapsed(candidate.id) } }}>{collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</span>}<span className="board-label">{candidate.title}<small>{depth > 0 ? 'Subboard · ' : ''}{candidate.pages.length} pages · {candidate.pages.reduce((total, item) => total + item.strokes.length, 0)} marks</small></span></button>)}</nav>
       </aside>
