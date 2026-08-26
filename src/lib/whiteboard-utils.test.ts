@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flattenWhiteboardTree, mergeWhiteboardChanges, selectedWhiteboardText, strokeBounds, strokesInsideLasso } from './whiteboard-utils'
+import { duplicateWhiteboardStrokes, flattenWhiteboardTree, mergeWhiteboardChanges, selectedWhiteboardText, strokeBounds, strokesInsideLasso } from './whiteboard-utils'
 import type { WhiteboardBoard, WhiteboardStroke } from '../types'
 
 const stroke = (id: string, x: number, y: number, updatedAt = '2026-08-26T08:00:00.000Z'): WhiteboardStroke => ({ id, tool: 'pen', colour: '#000000', size: 2, points: [{ x, y, pressure: .5 }], updatedAt })
@@ -19,6 +19,13 @@ describe('whiteboard selection helpers', () => {
     const textStroke: WhiteboardStroke = { ...stroke('text', 10, 10), tool: 'text', text: 'First note' }
     const linkStroke: WhiteboardStroke = { ...stroke('link', 20, 20), tool: 'link', text: 'Study link' }
     expect(selectedWhiteboardText([textStroke, stroke('drawing', 30, 30), linkStroke], ['text', 'drawing', 'link'])).toBe('First note\n\nStudy link')
+  })
+
+  it('duplicates handwritten strokes with new ids and an offset', () => {
+    const original = stroke('handwriting', 20, 30)
+    const [copy] = duplicateWhiteboardStrokes([original], 40, 50, () => 'copy', '2026-08-26T10:00:00.000Z')
+    expect(copy).toMatchObject({ id: 'copy', points: [{ x: 60, y: 80, pressure: .5 }] })
+    expect(original).toMatchObject({ id: 'handwriting', points: [{ x: 20, y: 30, pressure: .5 }] })
   })
 
   it('hides descendants when a board is collapsed', () => {
