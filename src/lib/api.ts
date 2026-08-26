@@ -228,6 +228,18 @@ export async function getPublicWhiteboards(): Promise<WhiteboardBoard[]> {
   catch { return [] }
 }
 
+export async function recordWhiteboardView(id: string): Promise<number | null> {
+  const viewId = viewIdFor(`whiteboard:${id}`)
+  if (LOCAL_DEMO) {
+    const board = readLocalWhiteboards().find((candidate) => candidate.id === id)
+    return board?.viewCount ?? 0
+  }
+  try {
+    const result = await request<{ viewCount: number }>(`/api/public/whiteboards/${encodeURIComponent(id)}/view`, { method: 'POST', body: JSON.stringify({ viewId }) })
+    return result.viewCount
+  } catch { return null }
+}
+
 export async function getPublicItem(slug: string): Promise<ContentItem | null> {
   if (LOCAL_DEMO) return readLocalItems().filter((item) => item.status === 'published').find((item) => item.slug === slug) || null
   try {
