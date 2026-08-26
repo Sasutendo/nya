@@ -234,6 +234,7 @@ export interface WhiteboardBoard {
   revision?: number
   deletedPageIds?: string[]
   sortOrder?: number
+  viewCount?: number
   createdAt: string
   updatedAt: string
 }
