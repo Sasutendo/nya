@@ -114,6 +114,7 @@ interface WhiteboardRow {
 interface StoredWhiteboardV2 {
   format: 'nya-whiteboard-v2'
   pages: Array<Record<string, unknown>>
+  coverImage?: string
   parentId?: string
   revision: number
   deletedPageIds?: string[]
@@ -213,6 +214,7 @@ function mapWhiteboard(row: WhiteboardRow) {
     title: row.title,
     pages,
     published: Boolean(row.published),
+    coverImage: Array.isArray(stored) ? undefined : stored.coverImage,
     parentId: Array.isArray(stored) ? undefined : stored.parentId,
     revision: Array.isArray(stored) ? 1 : Math.max(1, stored.revision || 1),
     deletedPageIds: Array.isArray(stored) ? [] : stored.deletedPageIds || [],
@@ -509,6 +511,7 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
   const published = body.published ? 1 : 0
   const sortOrder = typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder) ? Math.max(0, Math.floor(body.sortOrder)) : 0
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const coverImage = safeMediaUrl(body.coverImage) || undefined
   const parentId = cleanText(body.parentId, 100) || undefined
   if (!await validWhiteboardParent(env, id, parentId)) return error('Choose a valid parent board. Boards cannot be nested inside themselves.', 409)
   const deletedPageIds = Array.isArray(body.deletedPageIds) ? body.deletedPageIds.map((value) => cleanText(value, 100)).filter(Boolean).slice(0, 5000) : []
@@ -519,7 +522,7 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
     const metadata = storedWhiteboardMetadata(current)
     const incomingRevision = typeof body.revision === 'number' && Number.isFinite(body.revision) ? Math.max(1, Math.floor(body.revision)) : 1
     if (incomingRevision !== metadata.revision) return json({ error: 'This notebook changed on another device. The newest edits will be combined.', board: mapWhiteboard(current) }, 409)
-    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, parentId, revision: metadata.revision + 1, deletedPageIds } satisfies StoredWhiteboardV2)
+    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, coverImage, parentId, revision: metadata.revision + 1, deletedPageIds } satisfies StoredWhiteboardV2)
     if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
     const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,sort_order=?,updated_at=? WHERE id=? AND strokes_json=?').bind(title, background, strokesJson, published, sortOrder, now, id, current.strokes_json).run()
     if (!result.meta.changes) {
@@ -527,7 +530,7 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
       return latest ? json({ error: 'This notebook changed while it was saving. The newest edits will be combined.', board: mapWhiteboard(latest) }, 409) : error('This whiteboard could not be found.', 404)
     }
   } else {
-    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, parentId, revision: 1, deletedPageIds } satisfies StoredWhiteboardV2)
+    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, coverImage, parentId, revision: 1, deletedPageIds } satisfies StoredWhiteboardV2)
     if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
     await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,published,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, title, background, strokesJson, published, sortOrder, now, now).run()
   }
