@@ -73,6 +73,15 @@ export function selectedWhiteboardText(strokes: WhiteboardStroke[], selectedIds:
     .join('\n\n')
 }
 
+export function duplicateWhiteboardStrokes(strokes: WhiteboardStroke[], dx: number, dy: number, createId: (stroke: WhiteboardStroke, index: number) => string, updatedAt: string): WhiteboardStroke[] {
+  return strokes.map((stroke, index) => ({
+    ...stroke,
+    id: createId(stroke, index),
+    points: stroke.points.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })),
+    updatedAt,
+  }))
+}
+
 export function flattenWhiteboardTree(boards: WhiteboardBoard[], collapsedIds: ReadonlySet<string> = new Set(), query = ''): WhiteboardTreeEntry[] {
   const search = query.trim().toLowerCase()
   const known = new Set(boards.map((board) => board.id))
