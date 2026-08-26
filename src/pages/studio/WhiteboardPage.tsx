@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUpRight, Bold, Check, ChevronDown, ChevronRight, Circle, ClipboardPaste, Copy, Download, Eraser, Eye, EyeOff, FilePlus2, FileUp, FolderPlus, Highlighter, ImagePlus, Italic, LassoSelect, Link2, LoaderCircle, Maximize2, Minus, MousePointer2, PenLine,
-  Plus, Redo2, RotateCcw, Save, Scissors, Search, Sparkles, Square, StickyNote, TextCursorInput, Trash2, Underline, Undo2, X, ZoomIn, ZoomOut,
+  Lock, Plus, Redo2, RotateCcw, Save, Scissors, Search, Sparkles, Square, StickyNote, TextCursorInput, Trash2, Underline, Undo2, Unlock, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { ErrorNotice, LoadingState } from '../../components/Feedback'
@@ -14,7 +14,8 @@ import { StudioNav, useStudioSession } from './StudioPages'
 const BOARD_WIDTH = 1240
 const BOARD_HEIGHT = 1754
 const COLLAPSED_BOARDS_KEY = 'nya-collapsed-whiteboards-v1'
-const colours = ['#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0', '#477f91', '#62a6c0', '#5d8b6b', '#89b989', '#d28155', '#d54f68', '#f0c44f', '#8b6b55', '#68707d']
+const BOARD_ORDER_LOCK_KEY = 'nya-board-order-locked-v1'
+const colours = ['#000000', '#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0', '#477f91', '#62a6c0', '#5d8b6b', '#89b989', '#d28155', '#d54f68', '#f0c44f', '#8b6b55', '#68707d']
 const fontFamilies = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
 const imageCache = new Map<string, HTMLImageElement>()
 
@@ -177,6 +178,7 @@ export function WhiteboardPage() {
   const [uploadingCover, setUploadingCover] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [clipboardStrokes, setClipboardStrokes] = useState<WhiteboardStroke[]>([])
+  const [pastePlacement, setPastePlacement] = useState(false)
   const [collapsedBoardIds, setCollapsedBoardIds] = useState<Set<string>>(readCollapsedBoards)
   const [editor, setEditor] = useState<{ kind: 'text' | 'note'; point: WhiteboardPoint; value: string } | null>(null)
   const drag = useRef<{ ids: string[]; start: WhiteboardPoint; originals: Map<string, WhiteboardPoint[]>; latestStrokes: WhiteboardStroke[] } | null>(null)
@@ -189,6 +191,7 @@ export function WhiteboardPage() {
   const [future, setFuture] = useState<WhiteboardStroke[][]>([])
   const [draggedBoardId, setDraggedBoardId] = useState('')
   const [boardQuery, setBoardQuery] = useState('')
+  const [boardOrderLocked, setBoardOrderLocked] = useState(() => localStorage.getItem(BOARD_ORDER_LOCK_KEY) === 'true')
   const board = useMemo(() => boards.find((candidate) => candidate.id === activeId), [activeId, boards])
   const page = useMemo(() => board?.pages.find((candidate) => candidate.id === activePageId) || board?.pages[0], [activePageId, board])
   const visibleBoards = useMemo(() => flattenWhiteboardTree(boards, collapsedBoardIds, boardQuery), [boardQuery, boards, collapsedBoardIds])
@@ -205,6 +208,10 @@ export function WhiteboardPage() {
   useEffect(() => {
     try { localStorage.setItem(COLLAPSED_BOARDS_KEY, JSON.stringify([...collapsedBoardIds])) } catch { /* Collapsing remains available for this session. */ }
   }, [collapsedBoardIds])
+
+  useEffect(() => {
+    try { localStorage.setItem(BOARD_ORDER_LOCK_KEY, String(boardOrderLocked)) } catch { /* The lock still works for this session. */ }
+  }, [boardOrderLocked])
 
   useEffect(() => {
     const savedOffline = () => setSaveState('unsaved')
@@ -239,10 +246,11 @@ export function WhiteboardPage() {
       context.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
       page.strokes.forEach((stroke) => { try { drawStroke(context, stroke) } catch { /* Skip one damaged mark instead of crashing the notebook. */ } })
       const selectedSet = new Set(selectedIds)
-      page.strokes.filter((stroke) => selectedSet.has(stroke.id)).forEach((selected) => {
-        const bounds = strokeBounds(selected); if (!bounds) return
-        context.save(); context.strokeStyle = '#bd5d87'; context.lineWidth = 3; context.setLineDash([12, 8]); context.strokeRect(bounds.left - 4, bounds.top - 4, bounds.right - bounds.left + 8, bounds.bottom - bounds.top + 8); context.restore()
-      })
+      const selectedBounds = page.strokes.filter((stroke) => selectedSet.has(stroke.id)).map(strokeBounds).filter((value): value is NonNullable<typeof value> => Boolean(value))
+      if (selectedBounds.length) {
+        const left = Math.min(...selectedBounds.map((value) => value.left)); const top = Math.min(...selectedBounds.map((value) => value.top)); const right = Math.max(...selectedBounds.map((value) => value.right)); const bottom = Math.max(...selectedBounds.map((value) => value.bottom))
+        context.save(); context.strokeStyle = '#bd5d87'; context.lineWidth = 3; context.setLineDash([12, 8]); context.strokeRect(left - 6, top - 6, right - left + 12, bottom - top + 12); context.restore()
+      }
     }
     repaint()
     const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? imageCache.get(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
@@ -325,6 +333,9 @@ export function WhiteboardPage() {
 
   function beginStroke(event: React.PointerEvent<HTMLCanvasElement>) {
     if (!board || !page || (stylusOnly && event.pointerType !== 'pen' && event.pointerType !== 'touch')) return
+    if (pastePlacement) {
+      event.preventDefault(); void pasteSelection(pointFromEvent(event)); setPastePlacement(false); return
+    }
     if (event.pointerType === 'touch') {
       event.currentTarget.setPointerCapture(event.pointerId); touchPoints.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
       if (stylusOnly && touchPoints.current.size === 1) { setFitPage(false); const scroll = scrollRef.current; panGesture.current = scroll ? { x: event.clientX, y: event.clientY, left: scroll.scrollLeft, top: scroll.scrollTop } : null; return }
@@ -440,7 +451,7 @@ export function WhiteboardPage() {
     if (selectedText) { try { await writeClipboardText(selectedText) } catch { /* The whiteboard clipboard still contains the selected objects. */ } }
     setError('')
   }
-  async function pasteSelection() {
+  async function pasteSelection(target?: WhiteboardPoint) {
     if (!page) return
     let source = clipboardStrokes
     if (!source.length && navigator.clipboard?.readText) {
@@ -455,8 +466,8 @@ export function WhiteboardPage() {
     const bottom = bounds.length ? Math.max(...bounds.map((value) => value.bottom)) : 0
     const left = bounds.length ? Math.min(...bounds.map((value) => value.left)) : 0
     const top = bounds.length ? Math.min(...bounds.map((value) => value.top)) : 0
-    const dx = right + 40 > BOARD_WIDTH ? 20 - left : 40
-    const dy = bottom + 40 > BOARD_HEIGHT ? 20 - top : 40
+    const dx = target ? Math.max(0, Math.min(BOARD_WIDTH - (right - left), target.x - left)) : right + 40 > BOARD_WIDTH ? 20 - left : 40
+    const dy = target ? Math.max(0, Math.min(BOARD_HEIGHT - (bottom - top), target.y - top)) : bottom + 40 > BOARD_HEIGHT ? 20 - top : 40
     const updatedAt = new Date().toISOString()
     const copies = duplicateWhiteboardStrokes(source, dx, dy, (stroke) => newId(stroke.tool), updatedAt)
     setPast((history) => [...history.slice(-49), page.strokes]); setFuture([])
@@ -483,6 +494,7 @@ export function WhiteboardPage() {
   }
 
   function reorderBoards(targetId: string) {
+    if (boardOrderLocked) return
     if (!draggedBoardId || draggedBoardId === targetId) return
     const reordered = [...boards]; const from = reordered.findIndex((item) => item.id === draggedBoardId); const to = reordered.findIndex((item) => item.id === targetId); if (from < 0 || to < 0) return
     const [moved] = reordered.splice(from, 1); reordered.splice(to, 0, moved); const updatedAt = new Date().toISOString()
@@ -635,7 +647,7 @@ export function WhiteboardPage() {
     {error && <ErrorNotice message={error} />}
     <div className="whiteboard-layout">
       <aside className="whiteboard-sidebar">
-        <div><strong style={{ color: board?.pages[0]?.accentColour || '#bd5d87' }}>My boards</strong><button type="button" onClick={() => { void addBoard() }}><Plus size={15} />New</button></div>
+        <div><strong style={{ color: board?.pages[0]?.accentColour || '#bd5d87' }}>My boards</strong><button type="button" className={boardOrderLocked ? 'is-active' : ''} onClick={() => setBoardOrderLocked((value) => !value)} title={boardOrderLocked ? 'Unlock board sorting' : 'Lock the current board order'}>{boardOrderLocked ? <Lock size={15} /> : <Unlock size={15} />}{boardOrderLocked ? 'Locked' : 'Lock'}</button><button type="button" onClick={() => { void addBoard() }}><Plus size={15} />New</button></div>
         <label className="whiteboard-board-search"><Search size={15} /><input value={boardQuery} onChange={(event) => setBoardQuery(event.target.value)} placeholder="Search my notebooks…" /></label>
         <nav>{visibleBoards.map(({ board: candidate, depth, hasChildren, collapsed }) => <button key={candidate.id} type="button" draggable className={`${candidate.id === activeId ? 'is-active' : ''} ${candidate.id === draggedBoardId ? 'is-dragging' : ''} ${depth ? 'is-subboard' : ''} cover-${candidate.pages[0]?.coverStyle || 'blossom'}`} style={{ '--board-accent': candidate.pages[0]?.accentColour || '#bd5d87', '--board-depth': depth, '--cover-image': candidate.coverImage ? `url("${candidate.coverImage}")` : 'none' } as React.CSSProperties} onDragStart={(event) => { setDraggedBoardId(candidate.id); event.dataTransfer.setData('application/x-nya-board', JSON.stringify({ boardId: candidate.id, title: candidate.title })) }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropOnBoard(event, candidate.id)} onDragEnd={() => setDraggedBoardId('')} onClick={() => { setActiveId(candidate.id); setActivePageId(candidate.pages[0]?.id || ''); setSelectedIds([]); setPast([]); setFuture([]) }}>{depth > 0 ? <ChevronRight className="subboard-branch" size={14} aria-hidden="true" /> : <span className="board-drag-grip" aria-hidden="true">⠿</span>}{hasChildren && <span className="board-collapse-toggle" role="button" tabIndex={0} title={collapsed ? 'Show subboards' : 'Hide subboards'} aria-label={collapsed ? `Show subboards inside ${candidate.title}` : `Hide subboards inside ${candidate.title}`} aria-expanded={!collapsed} onClick={(event) => { event.stopPropagation(); toggleBoardCollapsed(candidate.id) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); toggleBoardCollapsed(candidate.id) } }}>{collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</span>}<span className="board-label">{candidate.title}<small>{depth > 0 ? 'Subboard · ' : ''}{candidate.pages.length} pages · {candidate.pages.reduce((total, item) => total + item.strokes.length, 0)} marks</small></span></button>)}</nav>
       </aside>
@@ -659,7 +671,7 @@ export function WhiteboardPage() {
           {tool === 'highlighter' ? <div className="marker-controls"><label className="stroke-size" title="Marker width in pixels"><Highlighter size={13} /><input type="range" min="6" max="80" step="1" value={markerSize} onChange={(event) => setMarkerSize(Number(event.target.value))} aria-label="Marker width slider" /><input className="precise-number" type="number" min="6" max="80" step="1" value={markerSize} onChange={(event) => setMarkerSize(Math.max(6, Math.min(80, Number(event.target.value) || 6)))} aria-label="Exact marker width" /><span>px</span></label><label className="marker-opacity" title="Marker opacity">Opacity <input type="range" min="10" max="60" step="1" value={markerOpacity} onChange={(event) => setMarkerOpacity(Number(event.target.value))} /><input className="precise-number" type="number" min="10" max="60" step="1" value={markerOpacity} onChange={(event) => setMarkerOpacity(Math.max(10, Math.min(60, Number(event.target.value) || 10)))} /><span>%</span></label></div> : <label className="stroke-size" title="Brush size in pixels"><Minus size={13} /><input type="range" min="0.5" max="80" step="0.5" value={size} onChange={(event) => setSize(Number(event.target.value))} aria-label="Brush size slider" /><input className="precise-number" type="number" min="0.5" max="80" step="0.5" value={size} onChange={(event) => setSize(Math.max(.5, Math.min(80, Number(event.target.value) || .5)))} aria-label="Exact brush size" /><span>px</span><Plus size={13} /></label>}
           <div className="tool-group history-tools"><button type="button" onClick={undo} disabled={!past.length} title="Undo"><Undo2 size={18} /></button><button type="button" onClick={redo} disabled={!future.length} title="Redo"><Redo2 size={18} /></button></div>
           {tool === 'text' && <><select value={fontFamily} onChange={(event) => setFontFamily(event.target.value as typeof fontFamily)} aria-label="Text style"><option value="handwritten">Handwritten</option><option value="sans">Clean sans</option><option value="serif">Classic serif</option><option value="mono">Monospace</option></select><label className="font-size-control">Text <input type="number" min="10" max="160" value={fontSize} onChange={(event) => setFontSize(Math.max(10, Math.min(160, Number(event.target.value))))} /></label><button type="button" className={bold ? 'format-button is-active' : 'format-button'} onClick={() => setBold((value) => !value)} title="Bold"><Bold size={16} /></button><button type="button" className={italic ? 'format-button is-active' : 'format-button'} onClick={() => setItalic((value) => !value)} title="Italic"><Italic size={16} /></button><button type="button" className={underline ? 'format-button is-active' : 'format-button'} onClick={() => setUnderline((value) => !value)} title="Underline"><Underline size={16} /></button></>}
-          {(selectedIds.length > 0 || clipboardStrokes.length > 0) && <div className="whiteboard-selection-panel"><span>{selectedIds.length ? selectedIds.length === 1 ? '1 selected' : `${selectedIds.length} selected` : `${clipboardStrokes.length} copied`}</span>{selectedIds.length > 0 && <><label>Size <input type="range" min="10" max="800" value={primarySelected?.width || primarySelected?.fontSize || primarySelected?.size || 36} onChange={(event) => { const value = Number(event.target.value); updateSelected(primarySelected?.tool === 'image' || primarySelected?.tool === 'note' || primarySelected?.tool === 'link' ? { width: value, height: Math.max(60, value * .7) } : primarySelected?.tool === 'text' ? { fontSize: Math.min(160, value) } : { size: Math.min(100, value) }) }} /></label><button type="button" onClick={() => { void copySelection() }} title="Copy selected objects (Ctrl/Cmd+C)"><Copy size={15} /></button><button type="button" onClick={() => { void copySelection(true) }} title="Cut selected objects (Ctrl/Cmd+X)"><Scissors size={15} /></button></>}<button type="button" onClick={() => { void pasteSelection() }} title="Paste copied objects (Ctrl/Cmd+V)"><ClipboardPaste size={15} /></button>{selectedIds.length > 0 && <><button type="button" onClick={captionSelected} title="Edit text or image caption"><TextCursorInput size={15} /></button><button type="button" onClick={() => updateSelected({ bold: !primarySelected?.bold })} title="Bold"><Bold size={15} /></button><button type="button" onClick={() => updateSelected({ italic: !primarySelected?.italic })} title="Italic"><Italic size={15} /></button><button type="button" onClick={() => updateSelected({ underline: !primarySelected?.underline })} title="Underline"><Underline size={15} /></button><button type="button" onClick={linkSelected} title="Add link"><Link2 size={15} /></button><button type="button" onClick={deleteSelected} title="Delete selected objects"><Trash2 size={15} /></button></>}</div>}
+          {(selectedIds.length > 0 || clipboardStrokes.length > 0) && <div className="whiteboard-selection-panel"><span>{pastePlacement ? 'Tap the paper to place' : selectedIds.length ? selectedIds.length === 1 ? '1 object' : `${selectedIds.length} marks grouped` : `${clipboardStrokes.length} copied`}</span>{selectedIds.length > 0 && <><label>Size <input type="range" min="10" max="800" value={primarySelected?.width || primarySelected?.fontSize || primarySelected?.size || 36} onChange={(event) => { const value = Number(event.target.value); updateSelected(primarySelected?.tool === 'image' || primarySelected?.tool === 'note' || primarySelected?.tool === 'link' ? { width: value, height: Math.max(60, value * .7) } : primarySelected?.tool === 'text' ? { fontSize: Math.min(160, value) } : { size: Math.min(100, value) }) }} /></label><button type="button" onClick={() => { void copySelection() }} title="Copy selected objects (Ctrl/Cmd+C)"><Copy size={15} /></button><button type="button" onClick={() => { void copySelection(true) }} title="Cut selected objects (Ctrl/Cmd+X)"><Scissors size={15} /></button></>}<button type="button" className={pastePlacement ? 'is-active' : ''} onClick={() => setPastePlacement((value) => !value)} title="Tap where copied objects should be pasted"><ClipboardPaste size={15} />{pastePlacement ? 'Cancel' : 'Place'}</button>{selectedIds.length > 0 && <><button type="button" onClick={captionSelected} title="Edit text or image caption"><TextCursorInput size={15} /></button><button type="button" onClick={() => updateSelected({ bold: !primarySelected?.bold })} title="Bold"><Bold size={15} /></button><button type="button" onClick={() => updateSelected({ italic: !primarySelected?.italic })} title="Italic"><Italic size={15} /></button><button type="button" onClick={() => updateSelected({ underline: !primarySelected?.underline })} title="Underline"><Underline size={15} /></button><button type="button" onClick={linkSelected} title="Add link"><Link2 size={15} /></button><button type="button" onClick={deleteSelected} title="Delete selected objects"><Trash2 size={15} /></button></>}</div>}
           <select value={page.background} onChange={(event) => updatePage({ background: event.target.value as WhiteboardBackground })} aria-label="Paper background"><option value="plain">Plain paper</option><option value="grid">Squared paper</option><option value="lined">Ruled paper</option><option value="dots">Dot paper</option><option value="margin">Ruled + margin</option><option value="cornell">Cornell notes</option><option value="checklist">Checklist</option></select>
           <select value={page.paperSize || 'a3'} onChange={(event) => updatePage({ paperSize: event.target.value as WhiteboardPageData['paperSize'] })} aria-label="Paper size"><option value="a4">A4</option><option value="a3">A3 large</option><option value="letter">Letter</option></select>
           <label className="ruling-size">Page size <input type="range" min="50" max="250" step="1" value={page.pageScale || 100} onChange={(event) => updatePage({ pageScale: Number(event.target.value) })} aria-label="Page size slider" /><input className="precise-number" type="number" min="50" max="250" step="1" value={page.pageScale || 100} onChange={(event) => updatePage({ pageScale: Math.max(50, Math.min(250, Number(event.target.value) || 100)) })} aria-label="Exact page size" /><span>%</span></label>

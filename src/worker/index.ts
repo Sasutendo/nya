@@ -109,6 +109,7 @@ interface WhiteboardRow {
   created_at: string
   updated_at: string
   sort_order: number
+  view_count: number
 }
 
 interface StoredWhiteboardV2 {
@@ -219,6 +220,7 @@ function mapWhiteboard(row: WhiteboardRow) {
     revision: Array.isArray(stored) ? 1 : Math.max(1, stored.revision || 1),
     deletedPageIds: Array.isArray(stored) ? [] : stored.deletedPageIds || [],
     sortOrder: row.sort_order || 0,
+    viewCount: row.view_count || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -405,6 +407,19 @@ async function publicCalendar(request: Request, env: Env): Promise<Response> {
 async function publicWhiteboards(env: Env): Promise<Response> {
   const result = await env.DB.prepare('SELECT * FROM whiteboards WHERE published=1 ORDER BY sort_order ASC, updated_at DESC').all<WhiteboardRow>()
   return json({ boards: (result.results || []).map(mapWhiteboard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
+}
+
+async function recordWhiteboardView(request: Request, id: string, env: Env): Promise<Response> {
+  if (!isSameOrigin(request)) return error('Cross-site requests are not allowed.', 403)
+  const body = await parseBody(request)
+  const viewId = cleanText(body?.viewId, 100)
+  if (!/^[a-zA-Z0-9_-]{16,100}$/.test(viewId)) return error('A valid view identifier is required.')
+  const board = await env.DB.prepare('SELECT id,view_count FROM whiteboards WHERE id=? AND published=1').bind(id).first<{ id: string; view_count: number }>()
+  if (!board) return error('This published notebook could not be found.', 404)
+  const inserted = await env.DB.prepare('INSERT OR IGNORE INTO whiteboard_views (whiteboard_id,view_id) VALUES (?,?)').bind(id, viewId).run()
+  if (inserted.meta.changes) await env.DB.prepare('UPDATE whiteboards SET view_count=view_count+1 WHERE id=?').bind(id).run()
+  const current = await env.DB.prepare('SELECT view_count FROM whiteboards WHERE id=?').bind(id).first<{ view_count: number }>()
+  return json({ viewCount: current?.view_count ?? board.view_count })
 }
 
 function validDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) }
@@ -848,6 +863,10 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
   if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
+  if (request.method === 'POST' && path.startsWith('/api/public/whiteboards/') && path.endsWith('/view')) {
+    const id = decodeURIComponent(path.slice('/api/public/whiteboards/'.length, -'/view'.length))
+    return recordWhiteboardView(request, id, env)
+  }
   if (request.method === 'GET' && path === '/api/public/web-search') return publicWebSearch(request)
   if (request.method === 'POST' && path === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && path === '/api/auth/logout') return json({ ok: true }, 200, { 'Set-Cookie': 'nya_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' })
