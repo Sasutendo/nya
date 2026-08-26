@@ -182,7 +182,7 @@ export interface StudyHubData {
   reflections: StudyReflection[]
 }
 
-export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text' | 'line' | 'arrow' | 'circle' | 'rectangle' | 'note' | 'link' | 'image' | 'select'
+export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text' | 'line' | 'arrow' | 'circle' | 'rectangle' | 'note' | 'link' | 'image' | 'select' | 'lasso'
 export type WhiteboardBackground = 'plain' | 'grid' | 'lined' | 'dots' | 'margin' | 'cornell' | 'checklist'
 
 export interface WhiteboardPoint { x: number; y: number; pressure: number }
@@ -204,6 +204,8 @@ export interface WhiteboardStroke {
   textAlign?: 'left' | 'center' | 'right'
   url?: string
   imageUrl?: string
+  opacity?: number
+  updatedAt?: string
 }
 
 export interface WhiteboardPageData {
@@ -217,6 +219,8 @@ export interface WhiteboardPageData {
   rulingSize?: number
   coverStyle?: 'blossom' | 'clinical' | 'night' | 'strawberry' | 'minimal' | 'sakura' | 'space' | 'cat'
   strokes: WhiteboardStroke[]
+  deletedStrokeIds?: string[]
+  updatedAt?: string
 }
 
 export interface WhiteboardBoard {
@@ -224,6 +228,9 @@ export interface WhiteboardBoard {
   title: string
   pages: WhiteboardPageData[]
   published: boolean
+  parentId?: string
+  revision?: number
+  deletedPageIds?: string[]
   sortOrder?: number
   createdAt: string
   updatedAt: string

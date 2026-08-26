@@ -25,11 +25,12 @@ function transaction<T>(storeName: string, mode: IDBTransactionMode, action: (st
   }))
 }
 
-export async function cacheWhiteboards(boards: WhiteboardBoard[]): Promise<void> {
+export async function cacheWhiteboards(boards: WhiteboardBoard[], replace = false): Promise<void> {
   const database = await openDatabase()
   await new Promise<void>((resolve, reject) => {
     const tx = database.transaction(BOARDS, 'readwrite')
     const store = tx.objectStore(BOARDS)
+    if (replace) store.clear()
     boards.forEach((board) => store.put(board))
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
@@ -42,13 +43,32 @@ export async function cachedWhiteboards(): Promise<WhiteboardBoard[]> {
 
 export async function queueWhiteboardWrite(board: WhiteboardBoard, create: boolean): Promise<void> {
   await transaction<IDBValidKey>(BOARDS, 'readwrite', (store) => store.put(board))
-  await transaction<IDBValidKey>(OUTBOX, 'readwrite', (store) => store.put({ id: board.id, board, create }))
+  await transaction<IDBValidKey>(OUTBOX, 'readwrite', (store) => store.put({ id: board.id, board, create, delete: false }))
 }
 
-export async function pendingWhiteboards(): Promise<Array<{ id: string; board: WhiteboardBoard; create: boolean }>> {
-  return transaction<Array<{ id: string; board: WhiteboardBoard; create: boolean }>>(OUTBOX, 'readonly', (store) => store.getAll())
+export async function queueWhiteboardDelete(id: string): Promise<void> {
+  await transaction<undefined>(BOARDS, 'readwrite', (store) => store.delete(id))
+  await transaction<IDBValidKey>(OUTBOX, 'readwrite', (store) => store.put({ id, delete: true }))
 }
 
-export async function removePendingWhiteboard(id: string): Promise<void> {
-  await transaction<undefined>(OUTBOX, 'readwrite', (store) => store.delete(id))
+export async function pendingWhiteboards(): Promise<Array<{ id: string; board?: WhiteboardBoard; create?: boolean; delete?: boolean }>> {
+  return transaction<Array<{ id: string; board?: WhiteboardBoard; create?: boolean; delete?: boolean }>>(OUTBOX, 'readonly', (store) => store.getAll())
+}
+
+export async function removePendingWhiteboard(id: string, expectedUpdatedAt?: string): Promise<void> {
+  const database = await openDatabase()
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction(OUTBOX, 'readwrite')
+    const store = tx.objectStore(OUTBOX)
+    if (!expectedUpdatedAt) store.delete(id)
+    else {
+      const read = store.get(id)
+      read.onsuccess = () => {
+        const pending = read.result as { board?: WhiteboardBoard } | undefined
+        if (pending?.board?.updatedAt === expectedUpdatedAt) store.delete(id)
+      }
+    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }

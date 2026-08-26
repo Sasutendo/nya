@@ -1,7 +1,8 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
 import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
 import { DEMO_NURSING_SKILLS, DEMO_STUDY_CARDS, DEMO_STUDY_REFLECTIONS } from './demo-study'
-import { cacheWhiteboards, cachedWhiteboards, pendingWhiteboards, queueWhiteboardWrite, removePendingWhiteboard } from './offline-whiteboards'
+import { cacheWhiteboards, cachedWhiteboards, pendingWhiteboards, queueWhiteboardDelete, queueWhiteboardWrite, removePendingWhiteboard } from './offline-whiteboards'
+import { mergeWhiteboardChanges } from './whiteboard-utils'
 import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
@@ -23,10 +24,12 @@ const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true
 
 class ApiError extends Error {
   status: number
+  data?: unknown
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message)
     this.status = status
+    this.data = data
   }
 }
 
@@ -57,7 +60,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: 'Something went wrong.' })) as { error?: string }
-    throw new ApiError(payload.error || 'Something went wrong.', response.status)
+    throw new ApiError(payload.error || 'Something went wrong.', response.status, payload)
   }
 
   return response.json() as Promise<T>
@@ -380,18 +383,45 @@ async function flushOfflineWhiteboards(): Promise<void> {
   if (!navigator.onLine) return
   for (const pending of await pendingWhiteboards()) {
     try {
-      const path = `/api/admin/whiteboards${pending.create ? '' : `/${pending.board.id}`}`
-      await request<{ board: WhiteboardBoard }>(path, { method: pending.create ? 'POST' : 'PUT', body: JSON.stringify(pending.board) })
-      await removePendingWhiteboard(pending.id)
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 404 && !pending.create) {
-        await request<{ board: WhiteboardBoard }>('/api/admin/whiteboards', { method: 'POST', body: JSON.stringify(pending.board) })
+      if (pending.delete) {
+        await request<{ ok: true }>(`/api/admin/whiteboards/${pending.id}`, { method: 'DELETE' }).catch((reason) => { if (!(reason instanceof ApiError && reason.status === 404)) throw reason })
         await removePendingWhiteboard(pending.id)
+        continue
+      }
+      if (!pending.board) { await removePendingWhiteboard(pending.id); continue }
+      const queuedBoard = pending.board
+      const path = `/api/admin/whiteboards${pending.create ? '' : `/${queuedBoard.id}`}`
+      const result = await saveRemoteWhiteboard(queuedBoard, Boolean(pending.create), path)
+      await cacheWhiteboards([result.board])
+      await removePendingWhiteboard(pending.id, queuedBoard.updatedAt)
+    } catch (reason) {
+      const queuedBoard = pending.board
+      if (queuedBoard && reason instanceof ApiError && reason.status === 404 && !pending.create) {
+        const result = await saveRemoteWhiteboard(queuedBoard, true, '/api/admin/whiteboards')
+        await cacheWhiteboards([result.board])
+        await removePendingWhiteboard(pending.id, queuedBoard.updatedAt)
         continue
       }
       throw reason
     }
   }
+}
+
+async function saveRemoteWhiteboard(board: WhiteboardBoard, create: boolean, path = `/api/admin/whiteboards${create ? '' : `/${board.id}`}`): Promise<{ board: WhiteboardBoard }> {
+  let candidate = board
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await request<{ board: WhiteboardBoard }>(attempt === 0 ? path : `/api/admin/whiteboards/${board.id}`, { method: create && attempt === 0 ? 'POST' : 'PUT', body: JSON.stringify(candidate) })
+    } catch (reason) {
+      const conflict = reason instanceof ApiError && reason.status === 409 && reason.data && typeof reason.data === 'object'
+        ? (reason.data as { board?: WhiteboardBoard }).board
+        : undefined
+      if (!conflict || create) throw reason
+      candidate = mergeWhiteboardChanges(candidate, conflict)
+      if (attempt === 2) throw reason
+    }
+  }
+  throw new ApiError('The notebook changed too quickly to sync. Your offline copy is still safe.', 409)
 }
 
 export const adminApi = {
@@ -535,19 +565,19 @@ export const adminApi = {
     if (LOCAL_DEMO) return { boards: readLocalWhiteboards() }
     if (!navigator.onLine) {
       const cached = await cachedWhiteboards(); const pending = await pendingWhiteboards(); const merged = [...cached]
-      pending.forEach(({ board }) => { const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
+      pending.forEach(({ board, delete: deleted, id }) => { if (deleted) { const index = merged.findIndex((candidate) => candidate.id === id); if (index >= 0) merged.splice(index, 1); return }; if (!board) return; const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
       return { boards: merged }
     }
     try {
       await flushOfflineWhiteboards()
       const result = await request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
-      await cacheWhiteboards(result.boards)
+      await cacheWhiteboards(result.boards, true)
       return result
     } catch (reason) {
       const cached = await cachedWhiteboards()
       const pending = await pendingWhiteboards()
       const merged = [...cached]
-      pending.forEach(({ board }) => { const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
+      pending.forEach(({ board, delete: deleted, id }) => { if (deleted) { const index = merged.findIndex((candidate) => candidate.id === id); if (index >= 0) merged.splice(index, 1); return }; if (!board) return; const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
       if (merged.length) return { boards: merged }
       throw reason
     }
@@ -566,8 +596,9 @@ export const adminApi = {
       return { board }
     }
     try {
-      const result = await request<{ board: WhiteboardBoard }>(`/api/admin/whiteboards${create ? '' : `/${board.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(board) })
+      const result = await saveRemoteWhiteboard(board, create)
       await cacheWhiteboards([result.board])
+      await removePendingWhiteboard(board.id, board.updatedAt)
       return result
     } catch (reason) {
       if (navigator.onLine && reason instanceof ApiError && reason.status > 0 && reason.status < 500) throw reason
@@ -576,10 +607,30 @@ export const adminApi = {
       return { board }
     }
   },
-  syncWhiteboards: async (): Promise<void> => { await flushOfflineWhiteboards() },
+  stageWhiteboard: async (board: WhiteboardBoard, create = false): Promise<void> => {
+    if (LOCAL_DEMO) return
+    await queueWhiteboardWrite(board, create)
+  },
+  syncWhiteboards: async (): Promise<{ boards: WhiteboardBoard[] }> => {
+    await flushOfflineWhiteboards()
+    const result = await request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
+    await cacheWhiteboards(result.boards, true)
+    return result
+  },
   removeWhiteboard: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_WHITEBOARDS_KEY, readLocalWhiteboards().filter((board) => board.id !== id)); return { ok: true } }
-    return request<{ ok: true }>(`/api/admin/whiteboards/${id}`, { method: 'DELETE' })
+    await queueWhiteboardDelete(id)
+    if (!navigator.onLine) { window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: id } })); return { ok: true } }
+    try {
+      const result = await request<{ ok: true }>(`/api/admin/whiteboards/${id}`, { method: 'DELETE' })
+      await removePendingWhiteboard(id)
+      return result
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 404) { await removePendingWhiteboard(id); return { ok: true } }
+      if (reason instanceof ApiError && reason.status > 0 && reason.status < 500) { await removePendingWhiteboard(id); throw reason }
+      window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: id } }))
+      return { ok: true }
+    }
   },
   upload: async (file: File): Promise<{ asset: MediaAsset }> => {
     if (LOCAL_DEMO) return { asset: await localFileAsset(file) }
