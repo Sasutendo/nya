@@ -184,6 +184,7 @@ export interface StudyHubData {
 
 export type WhiteboardTool = 'pen' | 'highlighter' | 'eraser' | 'text' | 'line' | 'arrow' | 'circle' | 'rectangle' | 'note' | 'link' | 'image' | 'select' | 'lasso'
 export type WhiteboardBackground = 'plain' | 'grid' | 'lined' | 'dots' | 'margin' | 'cornell' | 'checklist'
+export type WhiteboardCoverStyle = 'blossom' | 'clinical' | 'night' | 'strawberry' | 'minimal' | 'sakura' | 'space' | 'cat' | 'lavender' | 'ocean' | 'sunrise' | 'checker'
 
 export interface WhiteboardPoint { x: number; y: number; pressure: number }
 export interface WhiteboardStroke {
@@ -217,7 +218,7 @@ export interface WhiteboardPageData {
   orientation?: 'portrait' | 'landscape'
   accentColour?: string
   rulingSize?: number
-  coverStyle?: 'blossom' | 'clinical' | 'night' | 'strawberry' | 'minimal' | 'sakura' | 'space' | 'cat'
+  coverStyle?: WhiteboardCoverStyle
   strokes: WhiteboardStroke[]
   deletedStrokeIds?: string[]
   updatedAt?: string
@@ -228,6 +229,7 @@ export interface WhiteboardBoard {
   title: string
   pages: WhiteboardPageData[]
   published: boolean
+  coverImage?: string
   parentId?: string
   revision?: number
   deletedPageIds?: string[]

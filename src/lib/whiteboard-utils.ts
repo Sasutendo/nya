@@ -1,6 +1,7 @@
 import type { WhiteboardBoard, WhiteboardPageData, WhiteboardPoint, WhiteboardStroke } from '../types'
 
 export interface WhiteboardBounds { left: number; top: number; right: number; bottom: number }
+export interface WhiteboardTreeEntry { board: WhiteboardBoard; depth: number; hasChildren: boolean; collapsed: boolean }
 
 function timestamp(value?: string): number {
   const parsed = value ? Date.parse(value) : 0
@@ -62,6 +63,47 @@ export function strokesInsideLasso(strokes: WhiteboardStroke[], polygon: Whitebo
     if (pointInPolygon(centre, polygon)) return true
     return stroke.points.some((point) => pointInPolygon(point, polygon))
   }).map((stroke) => stroke.id)
+}
+
+export function selectedWhiteboardText(strokes: WhiteboardStroke[], selectedIds: string[]): string {
+  const selected = new Set(selectedIds)
+  return strokes
+    .filter((stroke) => selected.has(stroke.id) && Boolean(stroke.text?.trim()))
+    .map((stroke) => stroke.text!.trim())
+    .join('\n\n')
+}
+
+export function flattenWhiteboardTree(boards: WhiteboardBoard[], collapsedIds: ReadonlySet<string> = new Set(), query = ''): WhiteboardTreeEntry[] {
+  const search = query.trim().toLowerCase()
+  const known = new Set(boards.map((board) => board.id))
+  const children = new Map<string, WhiteboardBoard[]>()
+  boards.forEach((board) => {
+    const parent = board.parentId && known.has(board.parentId) ? board.parentId : ''
+    children.set(parent, [...(children.get(parent) || []), board])
+  })
+  if (search) {
+    return boards
+      .filter((board) => `${board.title} ${board.pages.map((page) => `${page.name} ${page.strokes.map((stroke) => stroke.text || '').join(' ')}`).join(' ')}`.toLowerCase().includes(search))
+      .map((board) => ({ board, depth: 0, hasChildren: Boolean(children.get(board.id)?.length), collapsed: collapsedIds.has(board.id) }))
+  }
+  const flattened: WhiteboardTreeEntry[] = []
+  const visited = new Set<string>()
+  const append = (parentId: string, depth: number) => (children.get(parentId) || []).forEach((board) => {
+    if (visited.has(board.id)) return
+    visited.add(board.id)
+    const hasChildren = Boolean(children.get(board.id)?.length)
+    const collapsed = hasChildren && collapsedIds.has(board.id)
+    flattened.push({ board, depth, hasChildren, collapsed })
+    if (!collapsed) append(board.id, depth + 1)
+  })
+  append('', 0)
+  boards.forEach((board) => {
+    if (visited.has(board.id) || (board.parentId && known.has(board.parentId))) return
+    visited.add(board.id)
+    const hasChildren = Boolean(children.get(board.id)?.length)
+    flattened.push({ board, depth: 0, hasChildren, collapsed: hasChildren && collapsedIds.has(board.id) })
+  })
+  return flattened
 }
 
 function mergePage(local: WhiteboardPageData, remote: WhiteboardPageData, localBoardTime: string, remoteBoardTime: string): WhiteboardPageData {
