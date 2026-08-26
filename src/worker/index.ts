@@ -111,6 +111,14 @@ interface WhiteboardRow {
   sort_order: number
 }
 
+interface StoredWhiteboardV2 {
+  format: 'nya-whiteboard-v2'
+  pages: Array<Record<string, unknown>>
+  parentId?: string
+  revision: number
+  deletedPageIds?: string[]
+}
+
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 const SESSION_SECONDS = 7 * 24 * 60 * 60
 const encoder = new TextEncoder()
@@ -197,9 +205,21 @@ function mapReflection(row: ReflectionRow) {
 }
 
 function mapWhiteboard(row: WhiteboardRow) {
-  const stored = parseJson<Array<Record<string, unknown>>>(row.strokes_json, [])
-  const pages = stored[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: stored }] : stored
-  return { id: row.id, title: row.title, pages, published: Boolean(row.published), sortOrder: row.sort_order || 0, createdAt: row.created_at, updatedAt: row.updated_at }
+  const stored = parseJson<Array<Record<string, unknown>> | StoredWhiteboardV2>(row.strokes_json, [])
+  const rawPages = Array.isArray(stored) ? stored : stored.pages
+  const pages = rawPages[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: rawPages }] : rawPages
+  return {
+    id: row.id,
+    title: row.title,
+    pages,
+    published: Boolean(row.published),
+    parentId: Array.isArray(stored) ? undefined : stored.parentId,
+    revision: Array.isArray(stored) ? 1 : Math.max(1, stored.revision || 1),
+    deletedPageIds: Array.isArray(stored) ? [] : stored.deletedPageIds || [],
+    sortOrder: row.sort_order || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -426,6 +446,8 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
     const candidate = stroke as Record<string, unknown>
     if (!['pen', 'highlighter', 'eraser', 'text', 'line', 'arrow', 'circle', 'rectangle', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < .5 || candidate.size > 100) return false
+    if (candidate.opacity !== undefined && (typeof candidate.opacity !== 'number' || candidate.opacity < .05 || candidate.opacity > 1)) return false
+    if (candidate.updatedAt !== undefined && !cleanText(candidate.updatedAt, 40)) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
     if (candidate.tool === 'text' || candidate.tool === 'note' || candidate.tool === 'link') {
       if (!cleanText(candidate.text, 4000) || !['handwritten', 'sans', 'serif', 'mono'].includes(String(candidate.fontFamily)) || typeof candidate.fontSize !== 'number' || candidate.fontSize < 10 || candidate.fontSize > 160) return false
@@ -450,10 +472,32 @@ function validWhiteboardPages(value: unknown): value is Array<Record<string, unk
   return value.every((page) => {
     if (!page || typeof page !== 'object') return false
     const candidate = page as Record<string, unknown>
+    const deletedStrokeIds = candidate.deletedStrokeIds
+    if (deletedStrokeIds !== undefined && (!Array.isArray(deletedStrokeIds) || deletedStrokeIds.length > 12_000 || deletedStrokeIds.some((id) => !cleanText(id, 100)))) return false
     return Boolean(cleanText(candidate.id, 100) && cleanText(candidate.name, 100))
       && ['plain', 'grid', 'lined', 'dots', 'margin', 'cornell', 'checklist'].includes(String(candidate.background))
       && validWhiteboardStrokes(candidate.strokes)
   })
+}
+
+function storedWhiteboardMetadata(row: WhiteboardRow): Pick<StoredWhiteboardV2, 'parentId' | 'revision' | 'deletedPageIds'> {
+  const stored = parseJson<Array<Record<string, unknown>> | StoredWhiteboardV2>(row.strokes_json, [])
+  return Array.isArray(stored) ? { revision: 1, deletedPageIds: [] } : { parentId: stored.parentId, revision: Math.max(1, stored.revision || 1), deletedPageIds: stored.deletedPageIds || [] }
+}
+
+async function validWhiteboardParent(env: Env, id: string, parentId?: string): Promise<boolean> {
+  if (!parentId) return true
+  const seen = new Set([id])
+  let current: string | undefined = parentId
+  while (current) {
+    if (seen.has(current)) return false
+    seen.add(current)
+    if (seen.size > 12) return false
+    const row: WhiteboardRow | null = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(current).first<WhiteboardRow>()
+    if (!row) return false
+    current = storedWhiteboardMetadata(row).parentId
+  }
+  return true
 }
 
 async function saveWhiteboard(request: Request, env: Env, existingId?: string): Promise<Response> {
@@ -462,20 +506,47 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
   const title = cleanText(body.title, 160) || 'Untitled board'
   if (!validWhiteboardPages(body.pages)) return error('The whiteboard notebook is too large or contains invalid pages.', 413)
   const background = cleanText(body.pages[0].background, 20)
-  const strokesJson = JSON.stringify(body.pages)
   const published = body.published ? 1 : 0
   const sortOrder = typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder) ? Math.max(0, Math.floor(body.sortOrder)) : 0
-  if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const parentId = cleanText(body.parentId, 100) || undefined
+  if (!await validWhiteboardParent(env, id, parentId)) return error('Choose a valid parent board. Boards cannot be nested inside themselves.', 409)
+  const deletedPageIds = Array.isArray(body.deletedPageIds) ? body.deletedPageIds.map((value) => cleanText(value, 100)).filter(Boolean).slice(0, 5000) : []
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,sort_order=?,updated_at=? WHERE id=?').bind(title, background, strokesJson, published, sortOrder, now, id).run()
-    if (!result.meta.changes) return error('This whiteboard could not be found.', 404)
+    const current = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
+    if (!current) return error('This whiteboard could not be found.', 404)
+    const metadata = storedWhiteboardMetadata(current)
+    const incomingRevision = typeof body.revision === 'number' && Number.isFinite(body.revision) ? Math.max(1, Math.floor(body.revision)) : 1
+    if (incomingRevision !== metadata.revision) return json({ error: 'This notebook changed on another device. The newest edits will be combined.', board: mapWhiteboard(current) }, 409)
+    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, parentId, revision: metadata.revision + 1, deletedPageIds } satisfies StoredWhiteboardV2)
+    if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
+    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,sort_order=?,updated_at=? WHERE id=? AND strokes_json=?').bind(title, background, strokesJson, published, sortOrder, now, id, current.strokes_json).run()
+    if (!result.meta.changes) {
+      const latest = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
+      return latest ? json({ error: 'This notebook changed while it was saving. The newest edits will be combined.', board: mapWhiteboard(latest) }, 409) : error('This whiteboard could not be found.', 404)
+    }
   } else {
+    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, parentId, revision: 1, deletedPageIds } satisfies StoredWhiteboardV2)
+    if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
     await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,published,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, title, background, strokesJson, published, sortOrder, now, now).run()
   }
   const row = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
   return json({ board: mapWhiteboard(row!) }, existingId ? 200 : 201)
+}
+
+async function deleteWhiteboard(env: Env, id: string): Promise<Response> {
+  const rows = (await env.DB.prepare('SELECT * FROM whiteboards').all<WhiteboardRow>()).results || []
+  if (!rows.some((row) => row.id === id)) return error('This whiteboard could not be found.', 404)
+  const now = new Date().toISOString()
+  const detachChildren = rows.flatMap((row) => {
+    const stored = parseJson<Array<Record<string, unknown>> | StoredWhiteboardV2>(row.strokes_json, [])
+    if (Array.isArray(stored) || stored.parentId !== id) return []
+    const next: StoredWhiteboardV2 = { ...stored, parentId: undefined, revision: Math.max(1, stored.revision || 1) + 1 }
+    return [env.DB.prepare('UPDATE whiteboards SET strokes_json=?,updated_at=? WHERE id=? AND strokes_json=?').bind(JSON.stringify(next), now, row.id, row.strokes_json)]
+  })
+  await env.DB.batch([...detachChildren, env.DB.prepare('DELETE FROM whiteboards WHERE id=?').bind(id)])
+  return json({ ok: true })
 }
 
 async function saveCalendarEvent(request: Request, env: Env, existingId?: string): Promise<Response> {
@@ -869,10 +940,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     if (path.startsWith('/api/admin/whiteboards/')) {
       const id = decodeURIComponent(path.slice('/api/admin/whiteboards/'.length))
       if (request.method === 'PUT') return saveWhiteboard(request, env, id)
-      if (request.method === 'DELETE') {
-        const result = await env.DB.prepare('DELETE FROM whiteboards WHERE id=?').bind(id).run()
-        return result.meta.changes ? json({ ok: true }) : error('This whiteboard could not be found.', 404)
-      }
+      if (request.method === 'DELETE') return deleteWhiteboard(env, id)
     }
     if (request.method === 'POST' && path === '/api/admin/upload') return uploadMedia(request, env)
   }
