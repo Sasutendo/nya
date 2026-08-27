@@ -54,7 +54,7 @@ export function strokesInsideLasso(strokes: WhiteboardStroke[], polygon: Whitebo
     if (point.y < polygonTop) polygonTop = point.y
     if (point.y > polygonBottom) polygonBottom = point.y
   }
-  return strokes.filter((stroke) => {
+  const selected = strokes.filter((stroke) => {
     if (stroke.tool === 'eraser') return false
     const bounds = strokeBounds(stroke)
     if (!bounds) return false
@@ -62,7 +62,26 @@ export function strokesInsideLasso(strokes: WhiteboardStroke[], polygon: Whitebo
     const centre = { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2, pressure: .5 }
     if (pointInPolygon(centre, polygon)) return true
     return stroke.points.some((point) => pointInPolygon(point, polygon))
-  }).map((stroke) => stroke.id)
+  })
+  const selectedBounds = selected.map(strokeBounds).filter((value): value is WhiteboardBounds => Boolean(value))
+  const masks = strokes.filter((stroke) => {
+    if (stroke.tool !== 'eraser') return false
+    const bounds = strokeBounds(stroke)
+    return Boolean(bounds && selectedBounds.some((selectedBound) => bounds.left <= selectedBound.right && bounds.right >= selectedBound.left && bounds.top <= selectedBound.bottom && bounds.bottom >= selectedBound.top))
+  })
+  return [...selected, ...masks].map((stroke) => stroke.id)
+}
+
+export function selectionWithEraserMasks(strokes: WhiteboardStroke[], ids: string[]): string[] {
+  const selected = new Set(ids)
+  const selectedBounds = strokes.filter((stroke) => selected.has(stroke.id) && stroke.tool !== 'eraser').map(strokeBounds).filter((value): value is WhiteboardBounds => Boolean(value))
+  if (!selectedBounds.length) return ids
+  strokes.forEach((stroke) => {
+    if (stroke.tool !== 'eraser') return
+    const bounds = strokeBounds(stroke)
+    if (bounds && selectedBounds.some((candidate) => bounds.left <= candidate.right && bounds.right >= candidate.left && bounds.top <= candidate.bottom && bounds.bottom >= candidate.top)) selected.add(stroke.id)
+  })
+  return [...selected]
 }
 
 export function selectedWhiteboardText(strokes: WhiteboardStroke[], selectedIds: string[]): string {
