@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { duplicateWhiteboardStrokes, flattenWhiteboardTree, mergeWhiteboardChanges, selectedWhiteboardText, strokeBounds, strokesInsideLasso } from './whiteboard-utils'
+import { duplicateWhiteboardStrokes, flattenWhiteboardTree, mergeWhiteboardChanges, selectedWhiteboardText, selectionWithEraserMasks, strokeBounds, strokesInsideLasso } from './whiteboard-utils'
 import type { WhiteboardBoard, WhiteboardStroke } from '../types'
 
 const stroke = (id: string, x: number, y: number, updatedAt = '2026-08-26T08:00:00.000Z'): WhiteboardStroke => ({ id, tool: 'pen', colour: '#000000', size: 2, points: [{ x, y, pressure: .5 }], updatedAt })
@@ -13,6 +13,13 @@ describe('whiteboard selection helpers', () => {
   it('selects marks whose centres are inside a lasso', () => {
     const polygon = [{ x: 0, y: 0, pressure: .5 }, { x: 200, y: 0, pressure: .5 }, { x: 200, y: 200, pressure: .5 }, { x: 0, y: 200, pressure: .5 }]
     expect(strokesInsideLasso([stroke('inside', 80, 80), stroke('outside', 400, 400)], polygon)).toEqual(['inside'])
+  })
+
+  it('moves overlapping eraser masks with selected handwriting', () => {
+    const writing = stroke('writing', 80, 80)
+    const eraser: WhiteboardStroke = { ...stroke('mask', 80, 80), tool: 'eraser', size: 24 }
+    expect(strokesInsideLasso([writing, eraser], [{ x: 0, y: 0, pressure: .5 }, { x: 200, y: 0, pressure: .5 }, { x: 200, y: 200, pressure: .5 }, { x: 0, y: 200, pressure: .5 }])).toEqual(['writing', 'mask'])
+    expect(selectionWithEraserMasks([writing, eraser], ['writing'])).toEqual(['writing', 'mask'])
   })
 
   it('copies only text from the selected marks in page order', () => {
