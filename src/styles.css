@@ -934,6 +934,9 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 .whiteboard-sidebar { overflow: hidden; }
 .whiteboard-sidebar > div { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid var(--line); }
 .whiteboard-sidebar > div strong { font-family: Georgia, serif; font-size: 1rem; font-weight: 500; }
+.whiteboard-sidebar > div .board-list-actions { display:flex; align-items:center; gap:5px; }
+.whiteboard-sidebar > div .board-list-actions button.danger { background:#a94f64; }
+.whiteboard-sidebar > div .board-list-actions button.is-active { background:#7d557f; }
 .whiteboard-sidebar > div button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border: 0; border-radius: 8px; color: #fff; background: var(--sage-dark); font-size: .58rem; font-weight: 800; cursor: pointer; }
 .whiteboard-sidebar nav { display: grid; gap: 4px; padding: 8px; }
 .whiteboard-board-search { display:flex; align-items:center; gap:7px; margin:9px 9px 0; padding:7px 9px; border:1px solid var(--line); border-radius:10px; color:var(--ink-soft); background:rgba(255,255,255,.42); }
