@@ -7,7 +7,7 @@ import { Navigate } from 'react-router-dom'
 import { ErrorNotice, LoadingState } from '../../components/Feedback'
 import { adminApi } from '../../lib/api'
 import { newId } from '../../lib/format'
-import { duplicateWhiteboardStrokes, flattenWhiteboardTree, selectedWhiteboardText, strokeBounds, strokesInsideLasso } from '../../lib/whiteboard-utils'
+import { duplicateWhiteboardStrokes, flattenWhiteboardTree, selectedWhiteboardText, selectionWithEraserMasks, strokeBounds, strokesInsideLasso } from '../../lib/whiteboard-utils'
 import type { WhiteboardBackground, WhiteboardBoard, WhiteboardPageData, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '../../types'
 import { StudioNav, useStudioSession } from './StudioPages'
 
@@ -353,7 +353,7 @@ export function WhiteboardPage() {
         const bounds = strokeBounds(stroke)
         return Boolean(bounds && point.x >= bounds.left - 12 && point.x <= bounds.right + 12 && point.y >= bounds.top - 12 && point.y <= bounds.bottom + 12)
       })
-      const ids = hit ? selectedIds.includes(hit.id) ? selectedIds : [hit.id] : []
+      const ids = hit ? selectionWithEraserMasks(page.strokes, selectedIds.includes(hit.id) ? selectedIds : [hit.id]) : []
       setSelectedIds(ids)
       if (hit) {
         event.currentTarget.setPointerCapture(event.pointerId)
@@ -557,7 +557,17 @@ export function WhiteboardPage() {
 
   async function deleteBoard() {
     if (!board) return
-    try { await adminApi.removeWhiteboard(board.id); const remaining = boards.filter((candidate) => candidate.id !== board.id).map((candidate) => candidate.parentId === board.id ? { ...candidate, parentId: undefined } : candidate); setBoards(remaining); setActiveId(remaining[0]?.id || ''); setActivePageId(remaining[0]?.pages[0]?.id || ''); if (!remaining.length) await addBoard() } catch (reason) { setError(reason instanceof Error ? reason.message : 'The board could not be deleted.') }
+    const deleting = board
+    pendingSaves.current.delete(deleting.id)
+    try {
+      await saveQueue.current.catch(() => undefined)
+      pendingSaves.current.delete(deleting.id)
+      await adminApi.removeWhiteboard(deleting.id)
+      const remaining = boards.filter((candidate) => candidate.id !== deleting.id).map((candidate) => candidate.parentId === deleting.id ? { ...candidate, parentId: deleting.parentId } : candidate)
+      const fallback = remaining.find((candidate) => candidate.id === deleting.parentId) || remaining[0]
+      setBoards(remaining); setActiveId(fallback?.id || ''); setActivePageId(fallback?.pages[0]?.id || '')
+      if (!remaining.length) await addBoard()
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'The board could not be deleted.') }
   }
 
   function updateBoard(patch: Partial<WhiteboardBoard>) {
