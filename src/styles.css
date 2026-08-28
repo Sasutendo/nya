@@ -1153,9 +1153,9 @@ label > small, .slide-media-field small { color: var(--ink-soft); font-size: .64
 :root[data-theme="dark"] .studio-subnav a,
 :root[data-theme="dark"] .studio-subnav button,
 :root[data-theme="dark"] .checkbox-label { background: rgba(53,38,47,.68); }
-:root[data-theme="dark"] .card-visual { color: #efb8cb; background: #4a303b; }
+:root[data-theme="dark"] .content-card:not(.notebook-project-card) .card-visual { color: #efb8cb; background: #4a303b; }
 :root[data-theme="dark"] .type-note .card-visual { color: #b6ced0; background: #293c3e; }
-:root[data-theme="dark"] .type-project .card-visual { color: #e0af9d; background: #46342d; }
+:root[data-theme="dark"] .type-project:not(.notebook-project-card) .card-visual { color: #e0af9d; background: #46342d; }
 :root[data-theme="dark"] .quick-presentation > span { background: #4a303b; }
 :root[data-theme="dark"] .quick-note > span { background: #293c3e; }
 :root[data-theme="dark"] .quick-project > span { background: #46342d; }
