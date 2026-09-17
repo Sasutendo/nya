@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { adminApi, authApi, getPublicEvents, getPublicItems, getPublicWhiteboards, getSettings, recordView } from './api'
+import { adminApi, authApi, getPublicEvents, getPublicItems, getPublicStudyCards, getPublicWhiteboards, getSettings, recordView } from './api'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -64,8 +64,23 @@ describe('zero-configuration local preview', () => {
     const saved = await adminApi.studyHub()
 
     expect(saved.cards.some((entry) => entry.id === card.id)).toBe(true)
+    expect((await getPublicStudyCards()).some((entry) => entry.id === card.id)).toBe(false)
     expect(saved.skills.some((entry) => entry.id === skill.id)).toBe(true)
     expect(saved.reflections.some((entry) => entry.id === reflection.id)).toBe(true)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('publishes typed or handwritten flashcards for the public learning page', async () => {
+    const time = new Date().toISOString()
+    const card = {
+      id: 'published_ink_card', question: '', answer: 'Radius', category: 'Anatomy', published: true,
+      questionInk: [{ id: 'ink_1', colour: '#302128', size: 2.4, points: [{ x: .1, y: .2, pressure: .5 }, { x: .8, y: .7, pressure: .7 }] }],
+      answerInk: [], createdAt: time, updatedAt: time,
+    }
+    await adminApi.saveStudyCard(card, true)
+    const published = await getPublicStudyCards()
+
+    expect(published.find((entry) => entry.id === card.id)?.questionInk).toHaveLength(1)
     expect(fetch).not.toHaveBeenCalled()
   })
 

@@ -76,8 +76,18 @@ interface StudyCardRow {
   question: string
   answer: string
   category: string
+  question_ink_json: string
+  answer_ink_json: string
+  published: number
   created_at: string
   updated_at: string
+}
+
+interface StudyCardInkStroke {
+  id: string
+  colour: string
+  size: number
+  points: Array<{ x: number; y: number; pressure: number }>
 }
 
 interface NursingSkillRow {
@@ -195,7 +205,17 @@ function mapTask(row: TaskRow) {
 }
 
 function mapStudyCard(row: StudyCardRow) {
-  return { id: row.id, question: row.question, answer: row.answer, category: row.category, createdAt: row.created_at, updatedAt: row.updated_at }
+  return {
+    id: row.id,
+    question: row.question,
+    answer: row.answer,
+    category: row.category,
+    questionInk: parseJson<StudyCardInkStroke[]>(row.question_ink_json || '[]', []),
+    answerInk: parseJson<StudyCardInkStroke[]>(row.answer_ink_json || '[]', []),
+    published: Boolean(row.published),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function mapNursingSkill(row: NursingSkillRow) {
@@ -292,6 +312,34 @@ async function parseBody(request: Request): Promise<Record<string, unknown> | nu
 
 function cleanText(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
+function cleanStudyCardInk(value: unknown): StudyCardInkStroke[] {
+  if (!Array.isArray(value)) return []
+  let remainingPoints = 20_000
+  return value.slice(0, 250).flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object' || remainingPoints <= 0) return []
+    const stroke = candidate as Record<string, unknown>
+    const rawPoints = Array.isArray(stroke.points) ? stroke.points.slice(0, Math.min(800, remainingPoints)) : []
+    const points = rawPoints.flatMap((candidatePoint) => {
+      if (!candidatePoint || typeof candidatePoint !== 'object') return []
+      const point = candidatePoint as Record<string, unknown>
+      const x = Number(point.x)
+      const y = Number(point.y)
+      const pressure = Number(point.pressure)
+      if (![x, y, pressure].every(Number.isFinite)) return []
+      return [{ x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)), pressure: Math.max(0, Math.min(1, pressure)) }]
+    })
+    remainingPoints -= points.length
+    if (!points.length) return []
+    const colour = cleanText(stroke.colour, 20)
+    return [{
+      id: cleanText(stroke.id, 100) || crypto.randomUUID(),
+      colour: /^#[0-9a-f]{6}$/i.test(colour) ? colour : '#302128',
+      size: Math.max(.5, Math.min(12, Number(stroke.size) || 2.4)),
+      points,
+    }]
+  })
 }
 
 function safeMediaUrl(value: unknown): string {
@@ -407,6 +455,11 @@ async function publicCalendar(request: Request, env: Env): Promise<Response> {
 async function publicWhiteboards(env: Env): Promise<Response> {
   const result = await env.DB.prepare('SELECT * FROM whiteboards WHERE published=1 ORDER BY sort_order ASC, updated_at DESC').all<WhiteboardRow>()
   return json({ boards: (result.results || []).map(mapWhiteboard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
+}
+
+async function publicStudyCards(env: Env): Promise<Response> {
+  const result = await env.DB.prepare('SELECT * FROM study_cards WHERE published=1 ORDER BY updated_at DESC').all<StudyCardRow>()
+  return json({ cards: (result.results || []).map(mapStudyCard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
 }
 
 async function recordWhiteboardView(request: Request, id: string, env: Env): Promise<Response> {
@@ -644,14 +697,20 @@ async function saveStudyCard(request: Request, env: Env, existingId?: string): P
   const question = cleanText(body.question, 500)
   const answer = cleanText(body.answer, 3000)
   const category = cleanText(body.category, 100) || 'General'
-  if (!question || !answer) return error('Add both a question and an answer.')
+  const questionInk = cleanStudyCardInk(body.questionInk)
+  const answerInk = cleanStudyCardInk(body.answerInk)
+  const published = body.published ? 1 : 0
+  if ((!question && !questionInk.length) || (!answer && !answerInk.length)) return error('Add a typed or handwritten front and back.')
+  const questionInkJson = JSON.stringify(questionInk)
+  const answerInkJson = JSON.stringify(answerInk)
+  if (questionInkJson.length + answerInkJson.length > 1_000_000) return error('The handwriting on this card is too large.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE study_cards SET question=?,answer=?,category=?,updated_at=? WHERE id=?').bind(question, answer, category, now, id).run()
+    const result = await env.DB.prepare('UPDATE study_cards SET question=?,answer=?,category=?,question_ink_json=?,answer_ink_json=?,published=?,updated_at=? WHERE id=?').bind(question, answer, category, questionInkJson, answerInkJson, published, now, id).run()
     if (!result.meta.changes) return error('This study card could not be found.', 404)
   } else {
-    await env.DB.prepare('INSERT INTO study_cards (id,question,answer,category,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(id, question, answer, category, now, now).run()
+    await env.DB.prepare('INSERT INTO study_cards (id,question,answer,category,question_ink_json,answer_ink_json,published,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, question, answer, category, questionInkJson, answerInkJson, published, now, now).run()
   }
   const row = await env.DB.prepare('SELECT * FROM study_cards WHERE id=?').bind(id).first<StudyCardRow>()
   return json({ card: mapStudyCard(row!) }, existingId ? 200 : 201)
@@ -804,7 +863,7 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
   let binary = ''
   for (let offset = 0; offset < bytes.length; offset += 32_768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768))
   const repository = `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`
-  const response = await fetch(`https://api.github.com/repos/${repository}/contents/${key}`, {
+  const githubRequest = () => fetch(`https://api.github.com/repos/${repository}/contents/${key}`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
@@ -819,6 +878,19 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
       branch: env.GITHUB_BRANCH || 'main',
     }),
   })
+  let response: Response | undefined
+  let githubFailure: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await githubRequest()
+      if (response.ok || response.status < 500) break
+    } catch (reason) { githubFailure = reason }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+  }
+  if (!response) {
+    console.error('GitHub upload connection failed', githubFailure)
+    return error('The upload server temporarily lost its connection to GitHub. Please try again.', 503)
+  }
   const payload = await response.json().catch(() => ({})) as { message?: string; content?: { download_url?: string } }
   if (!response.ok) {
     console.error('GitHub upload failed', response.status, payload.message)
@@ -887,6 +959,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     return json({ settings: parseJson(row?.value_json || '{}', {}) })
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
+  if (request.method === 'GET' && path === '/api/public/study-cards') return publicStudyCards(env)
   if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
   if (request.method === 'GET' && path.startsWith('/api/public/media/')) return publicUploadedMedia(path.slice('/api/public/media/'.length), env)
   if (request.method === 'POST' && path.startsWith('/api/public/whiteboards/') && path.endsWith('/view')) {

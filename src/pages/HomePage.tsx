@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, NotebookTabs, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Layers3, NotebookTabs, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
 import { OwnerClock } from '../components/OwnerClock'
@@ -35,6 +35,13 @@ export function HomePage() {
   }, [])
 
   const featured = useMemo(() => items.filter((item) => item.featured).slice(0, 3), [items])
+  const recentNotes = useMemo(
+    () => items
+      .filter((item) => item.type === 'note')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 3),
+    [items],
+  )
   const previewDeck = items.find((item) => item.content.kind === 'presentation')
   const firstSlide = previewDeck?.content.kind === 'presentation' ? previewDeck.content.slides[0] : undefined
   const today = new Date().toISOString().slice(0, 10)
@@ -136,6 +143,21 @@ export function HomePage() {
         </div>
       </section>
 
+      {recentNotes.length > 0 && (
+        <section className="section-shell content-section home-notes-section">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow"><FileText size={15} />{text('Easy to find', 'Schnell gefunden')}</p>
+              <h2>{text('Recent study notes', 'Aktuelle Lernnotizen')}</h2>
+            </div>
+            <Link to="/notes" className="text-link">{text('View all notes', 'Alle Notizen ansehen')} <ArrowRight size={16} /></Link>
+          </div>
+          <div className="content-grid">
+            {recentNotes.map((item) => <ContentCard key={item.id} item={item} />)}
+          </div>
+        </section>
+      )}
+
       <StudyJourneySection items={items} />
 
       <section className="quick-links section-shell" aria-label={text('Browse by content type', 'Nach Inhaltstyp durchsuchen')}>
@@ -162,6 +184,11 @@ export function HomePage() {
         <Link to="/notebooks" className="quick-link quick-notebooks">
           <span><NotebookTabs size={21} /></span>
           <div><strong>{text('Notebooks', 'Lernhefte')}</strong><small>{text('Read published handwritten pages', 'Veröffentlichte handschriftliche Seiten')}</small></div>
+          <ArrowRight size={18} />
+        </Link>
+        <Link to="/flashcards" className="quick-link quick-flashcards">
+          <span><Layers3 size={21} /></span>
+          <div><strong>{text('Flashcards', 'Karteikarten')}</strong><small>{text('Flip, recall and review', 'Umdrehen, erinnern und wiederholen')}</small></div>
           <ArrowRight size={18} />
         </Link>
       </section>
