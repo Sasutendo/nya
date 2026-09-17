@@ -250,6 +250,16 @@ export async function getPublicItem(slug: string): Promise<ContentItem | null> {
   }
 }
 
+export async function getPublicStudyCards(): Promise<StudyCard[]> {
+  if (LOCAL_DEMO) return readLocalStudyCards().filter((card) => card.published)
+  try {
+    const result = await request<{ cards: StudyCard[] }>('/api/public/study-cards')
+    return result.cards
+  } catch {
+    return DEMO_STUDY_CARDS.filter((card) => card.published)
+  }
+}
+
 function viewIdFor(slug: string): string {
   const key = `${LOCAL_VIEW_PREFIX}${slug}`
   try {
@@ -646,16 +656,29 @@ export const adminApi = {
   },
   upload: async (file: File): Promise<{ asset: MediaAsset }> => {
     if (LOCAL_DEMO) return { asset: await localFileAsset(file) }
-    try {
-      const response = await fetch('/api/admin/upload', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-        body: file,
-      })
-      const payload = await response.json() as { asset?: MediaAsset; error?: string }
-      if (!response.ok || !payload.asset) throw new ApiError(payload.error || 'The file could not be uploaded.', response.status)
-      return { asset: payload.asset }
-    } catch (reason) { throw reason }
+    let lastFailure: unknown
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetch('/api/admin/upload', {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+          body: file,
+        })
+        const text = await response.text()
+        let payload: { asset?: MediaAsset; error?: string } = {}
+        try { payload = JSON.parse(text) as { asset?: MediaAsset; error?: string } } catch { /* The fallback below describes malformed server responses. */ }
+        if (response.ok && payload.asset) return { asset: payload.asset }
+        const failure = new ApiError(payload.error || `The upload server returned ${response.status}.`, response.status)
+        if (response.status > 0 && response.status < 500) throw failure
+        lastFailure = failure
+      } catch (reason) {
+        if (reason instanceof ApiError && reason.status > 0 && reason.status < 500) throw reason
+        lastFailure = reason
+      }
+      if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 800 * (attempt + 1)))
+    }
+    if (lastFailure instanceof ApiError) throw lastFailure
+    throw new ApiError(navigator.onLine ? 'The upload connection failed after three attempts. Please try the image again.' : 'The image cannot upload while the tablet is offline.', 0)
   },
 }
 

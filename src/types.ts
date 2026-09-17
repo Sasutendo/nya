@@ -152,8 +152,24 @@ export interface StudyCard {
   question: string
   answer: string
   category: string
+  questionInk?: StudyCardInkStroke[]
+  answerInk?: StudyCardInkStroke[]
+  published?: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface StudyCardInkPoint {
+  x: number
+  y: number
+  pressure: number
+}
+
+export interface StudyCardInkStroke {
+  id: string
+  colour: string
+  size: number
+  points: StudyCardInkPoint[]
 }
 
 export interface NursingSkill {

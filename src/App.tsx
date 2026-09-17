@@ -14,6 +14,7 @@ const ItemPage = lazy(() => import('./pages/ItemPage').then((module) => ({ defau
 const PresentationPage = lazy(() => import('./pages/PresentationPage').then((module) => ({ default: module.PresentationPage })))
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })))
 const PublicNotebooksPage = lazy(() => import('./pages/PublicNotebooksPage').then((module) => ({ default: module.PublicNotebooksPage })))
+const FlashcardsPage = lazy(() => import('./pages/FlashcardsPage').then((module) => ({ default: module.FlashcardsPage })))
 const SearchPage = lazy(() => import('./pages/SearchPage').then((module) => ({ default: module.SearchPage })))
 const StudioPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioPage })))
 const StudioEditorPage = lazy(() => import('./pages/studio/StudioPages').then((module) => ({ default: module.StudioEditorPage })))
@@ -97,6 +98,7 @@ export default function App() {
           <Route path="projects" element={<LibraryPage fixedType="project" />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="notebooks" element={<PublicNotebooksPage />} />
+          <Route path="flashcards" element={<FlashcardsPage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="item/:slug" element={<ItemPage />} />
           <Route path="studio/login" element={<StudioLoginPage />} />
