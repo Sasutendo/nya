@@ -1,4 +1,4 @@
-const VERSION = 'nya-offline-v2'
+const VERSION = 'nya-offline-v3'
 const SHELL = `${VERSION}-shell`
 const RUNTIME = `${VERSION}-runtime`
 const PUBLIC_DATA = `${VERSION}-public-data`
@@ -56,6 +56,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+
+  if (url.pathname.startsWith('/api/public/media/')) {
+    const network = fetchWithTimeout(request, 12_000).then((response) => updateCache(RUNTIME, request, response))
+    event.respondWith(caches.match(request).then((cached) => cached || network).catch(() => new Response('', { status: 504 })))
+    return
+  }
 
   if (url.pathname.startsWith('/api/public/')) {
     const network = fetchWithTimeout(request).then((response) => updateCache(PUBLIC_DATA, request, response))
