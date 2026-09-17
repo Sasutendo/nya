@@ -19,7 +19,19 @@ const colours = ['#000000', '#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0
 const fontFamilies = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
 const imageCache = new Map<string, HTMLImageElement>()
 
+function reliableMediaUrl(url: string): string {
+  try {
+    const parsed = new URL(url, window.location.origin)
+    if (parsed.hostname !== 'raw.githubusercontent.com') return url
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    const publicIndex = parts.indexOf('public')
+    if (publicIndex < 0 || parts[publicIndex + 1] !== 'uploads') return url
+    return `/api/public/media/${parts.slice(publicIndex).map(encodeURIComponent).join('/')}`
+  } catch { return url }
+}
+
 function cacheImage(url: string): HTMLImageElement {
+  url = reliableMediaUrl(url)
   let image = imageCache.get(url)
   if (image) return image
   if (imageCache.size >= 64) imageCache.delete(imageCache.keys().next().value as string)
@@ -148,7 +160,6 @@ export function WhiteboardPage() {
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
   const pendingSaves = useRef(new Map<string, WhiteboardBoard>())
   const saveTimer = useRef<number | undefined>(undefined)
-  const localSaveTimer = useRef<number | undefined>(undefined)
   const saveVersion = useRef(0)
   const savedRevisions = useRef(new Map<string, number>())
   const [boards, setBoards] = useState<WhiteboardBoard[]>([])
@@ -275,10 +286,7 @@ export function WhiteboardPage() {
     const version = ++saveVersion.current
     pendingSaves.current.set(next.id, next)
     setSaveState('saving')
-    if (localSaveTimer.current) window.clearTimeout(localSaveTimer.current)
-    localSaveTimer.current = window.setTimeout(() => {
-      pendingSaves.current.forEach((candidate) => { void adminApi.stageWhiteboard(prepareBoardForSave(candidate)) })
-    }, 120)
+    void adminApi.stageWhiteboard(prepareBoardForSave(next)).catch(() => undefined)
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
       const batch = [...pendingSaves.current.values()]

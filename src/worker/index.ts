@@ -296,7 +296,7 @@ function cleanText(value: unknown, max: number): string {
 
 function safeMediaUrl(value: unknown): string {
   if (typeof value !== 'string') return ''
-  if (value.startsWith('/uploads/') || value.startsWith('/images/')) return value.slice(0, 2000)
+  if (value.startsWith('/uploads/') || value.startsWith('/images/') || value.startsWith('/api/public/media/')) return value.slice(0, 2000)
   try {
     const url = new URL(value)
     return ['https:', 'http:'].includes(url.protocol) ? value.slice(0, 2000) : ''
@@ -826,10 +826,35 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
       ? 'GitHub could not authorise this upload. Check the private GITHUB_TOKEN secret.'
       : 'GitHub could not commit this file. Please try again.', 502)
   }
-  const immediateUrl = payload.content?.download_url
-    || `https://raw.githubusercontent.com/${repository}/${env.GITHUB_BRANCH || 'main'}/${key.split('/').map(encodeURIComponent).join('/')}`
+  const immediateUrl = `/api/public/media/${key.split('/').map(encodeURIComponent).join('/')}`
   const asset: MediaAsset = { id: key, name, url: immediateUrl, kind, mimeType: mime, size: bytes.byteLength }
   return json({ asset }, 201)
+}
+
+async function publicUploadedMedia(path: string, env: Env): Promise<Response> {
+  let key = ''
+  try { key = path.split('/').map(decodeURIComponent).join('/') } catch { return error('This uploaded file path is invalid.', 400) }
+  if (!/^public\/uploads\/\d{4}\/\d{2}\/[a-zA-Z0-9._-]+$/.test(key)) return error('This uploaded file path is invalid.', 400)
+  const repository = `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`
+  const response = await fetch(`https://api.github.com/repos/${repository}/contents/${key.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(env.GITHUB_BRANCH || 'main')}`, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github.raw+json',
+      'User-Agent': 'Sasutendo-nya',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  })
+  if (!response.ok || !response.body) return error('This uploaded file is temporarily unavailable.', response.status === 404 ? 404 : 502)
+  const extension = key.toLowerCase().split('.').pop() || ''
+  const knownTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', pdf: 'application/pdf', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', webm: 'video/webm' }
+  return new Response(response.body, {
+    status: 200,
+    headers: {
+      'Content-Type': knownTypes[extension] || response.headers.get('Content-Type') || 'application/octet-stream',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
 }
 
 async function publicWebSearch(request: Request): Promise<Response> {
@@ -863,6 +888,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
   if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
+  if (request.method === 'GET' && path.startsWith('/api/public/media/')) return publicUploadedMedia(path.slice('/api/public/media/'.length), env)
   if (request.method === 'POST' && path.startsWith('/api/public/whiteboards/') && path.endsWith('/view')) {
     const id = decodeURIComponent(path.slice('/api/public/whiteboards/'.length, -'/view'.length))
     return recordWhiteboardView(request, id, env)

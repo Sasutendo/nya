@@ -13,7 +13,19 @@ const COLLAPSED_BOARDS_KEY = 'nya-collapsed-whiteboards-v1'
 const fontFamilies = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
 const imageCache = new Map<string, HTMLImageElement>()
 
+function reliableMediaUrl(url: string): string {
+  try {
+    const parsed = new URL(url, window.location.origin)
+    if (parsed.hostname !== 'raw.githubusercontent.com') return url
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    const publicIndex = parts.indexOf('public')
+    if (publicIndex < 0 || parts[publicIndex + 1] !== 'uploads') return url
+    return `/api/public/media/${parts.slice(publicIndex).map(encodeURIComponent).join('/')}`
+  } catch { return url }
+}
+
 function cacheImage(url: string): HTMLImageElement {
+  url = reliableMediaUrl(url)
   let image = imageCache.get(url)
   if (image) return image
   if (imageCache.size >= 64) imageCache.delete(imageCache.keys().next().value as string)
