@@ -4,7 +4,7 @@ export type SlideLayout = 'title' | 'statement' | 'split' | 'list' | 'quote' | '
 export type SlideTone = 'sage' | 'ocean' | 'clay' | 'plum' | 'paper'
 export type SlideAnimation = 'none' | 'fade' | 'rise' | 'pop' | 'drift'
 export type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'file'
-export type CalendarEventCategory = 'school' | 'placement' | 'assignment' | 'exam' | 'milestone' | 'personal'
+export type CalendarEventCategory = 'school' | 'placement' | 'early_shift' | 'late_shift' | 'night_shift' | 'free' | 'vacation' | 'sick' | 'training' | 'lecture' | 'study' | 'assignment' | 'exam' | 'appointment' | 'milestone' | 'personal' | 'other'
 export type EventVisibility = 'public' | 'private'
 export type StickyNoteColour = 'pink' | 'peach' | 'yellow' | 'sage' | 'lilac'
 export type TaskPriority = 'low' | 'normal' | 'high'
@@ -116,9 +116,26 @@ export interface CalendarEvent {
   date: string
   endDate?: string
   time?: string
+  endTime?: string
   category: CalendarEventCategory
   visibility: EventVisibility
+  colour?: string
+  templateId?: string
   relatedItemSlug?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ShiftTemplate {
+  id: string
+  title: string
+  shortLabel: string
+  description: string
+  startTime?: string
+  endTime?: string
+  category: CalendarEventCategory
+  colour: string
+  visibility: EventVisibility
   createdAt: string
   updatedAt: string
 }
@@ -143,6 +160,7 @@ export interface PlannerTask {
 
 export interface PlannerData {
   events: CalendarEvent[]
+  templates: ShiftTemplate[]
   notes: StickyNote[]
   tasks: PlannerTask[]
 }

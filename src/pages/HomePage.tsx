@@ -11,6 +11,7 @@ import { getPublicEvents, getPublicItems } from '../lib/api'
 import { notesForCycle } from '../lib/cute-notes'
 import { showEasterEgg, unlockAchievement, unlockEggAchievement } from '../lib/achievements'
 import { localizeAuthoredDefault, useLanguage } from '../lib/i18n'
+import { validCalendarColour } from '../lib/calendar'
 import type { CalendarEvent, ContentItem } from '../types'
 
 export function HomePage() {
@@ -203,7 +204,7 @@ export function HomePage() {
             <div className="home-agenda-title"><span><CalendarDays size={19} /></span><div><strong>{text('Coming up', 'Demnächst')}</strong><small>{text('Public milestones and important dates', 'Öffentliche Meilensteine und wichtige Termine')}</small></div></div>
             {upcoming.length ? <div>{upcoming.map((event) => {
               const date = new Date(`${event.date}T12:00:00`)
-              return <Link to="/calendar" key={event.id} className={`home-agenda-item category-${event.category}`}><time><strong>{date.getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span></time><div><strong>{event.title}</strong><small>{event.time || 'All day'} · {event.category}</small></div><ArrowRight size={16} /></Link>
+              return <Link to="/calendar" key={event.id} className={`home-agenda-item category-${event.category}`} style={{ '--event-colour': validCalendarColour(event.colour) } as React.CSSProperties}><time><strong>{date.getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span></time><div><strong>{event.title}</strong><small>{event.time || 'All day'} · {event.category}</small></div><ArrowRight size={16} /></Link>
             })}</div> : <p className="home-agenda-empty">{text('The calendar is clear for now.', 'Der Kalender ist im Moment frei.')}</p>}
           </div>
           <div className="home-sticky-wall" aria-label={text('Learning reminders', 'Lernerinnerungen')} aria-live="polite">
