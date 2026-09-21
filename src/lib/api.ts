@@ -1,9 +1,9 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
-import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
+import { DEMO_CALENDAR_EVENTS, DEMO_SHIFT_TEMPLATES, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
 import { DEMO_NURSING_SKILLS, DEMO_STUDY_CARDS, DEMO_STUDY_REFLECTIONS } from './demo-study'
 import { cacheWhiteboards, cachedWhiteboards, pendingWhiteboards, queueWhiteboardDelete, queueWhiteboardWrite, removePendingWhiteboard } from './offline-whiteboards'
 import { mergeWhiteboardChanges } from './whiteboard-utils'
-import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
+import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, ShiftTemplate, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
 const LOCAL_SETTINGS_KEY = 'nya-local-settings-v1'
@@ -13,6 +13,7 @@ const LOCAL_EMAIL_KEY = 'nya-local-owner-email-v1'
 const LOCAL_EVENTS_KEY = 'nya-local-calendar-v1'
 const LOCAL_NOTES_KEY = 'nya-local-stickies-v1'
 const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
+const LOCAL_SHIFT_TEMPLATES_KEY = 'nya-local-shift-templates-v1'
 const LOCAL_STUDY_CARDS_KEY = 'nya-local-study-cards-v1'
 const LOCAL_NURSING_SKILLS_KEY = 'nya-local-nursing-skills-v1'
 const LOCAL_REFLECTIONS_KEY = 'nya-local-reflections-v1'
@@ -169,6 +170,7 @@ function writeLocalCollection<T>(key: string, values: T[]) {
 const readLocalEvents = () => readLocalCollection(LOCAL_EVENTS_KEY, DEMO_CALENDAR_EVENTS)
 const readLocalNotes = () => readLocalCollection(LOCAL_NOTES_KEY, DEMO_STICKY_NOTES)
 const readLocalTasks = () => readLocalCollection(LOCAL_TASKS_KEY, DEMO_TASKS)
+const readLocalShiftTemplates = () => readLocalCollection(LOCAL_SHIFT_TEMPLATES_KEY, DEMO_SHIFT_TEMPLATES)
 const readLocalStudyCards = () => readLocalCollection(LOCAL_STUDY_CARDS_KEY, DEMO_STUDY_CARDS)
 const readLocalNursingSkills = () => readLocalCollection(LOCAL_NURSING_SKILLS_KEY, DEMO_NURSING_SKILLS)
 const readLocalReflections = () => readLocalCollection(LOCAL_REFLECTIONS_KEY, DEMO_STUDY_REFLECTIONS)
@@ -492,7 +494,7 @@ export const adminApi = {
     return request<{ settings: SiteSettings }>('/api/admin/settings', { method: 'PUT', body: JSON.stringify(settings) })
   },
   planner: async (): Promise<PlannerData> => {
-    if (LOCAL_DEMO) return { events: readLocalEvents(), notes: readLocalNotes(), tasks: readLocalTasks() }
+    if (LOCAL_DEMO) return { events: readLocalEvents(), templates: readLocalShiftTemplates(), notes: readLocalNotes(), tasks: readLocalTasks() }
     return request<PlannerData>('/api/admin/planner')
   },
   saveEvent: async (event: CalendarEvent, create = false): Promise<{ event: CalendarEvent }> => {
@@ -508,6 +510,20 @@ export const adminApi = {
   removeEvent: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_EVENTS_KEY, readLocalEvents().filter((event) => event.id !== id)); return { ok: true } }
     return request<{ ok: true }>(`/api/admin/calendar/${id}`, { method: 'DELETE' })
+  },
+  saveShiftTemplate: async (template: ShiftTemplate, create = false): Promise<{ template: ShiftTemplate }> => {
+    if (LOCAL_DEMO) {
+      const templates = readLocalShiftTemplates()
+      const exists = templates.some((candidate) => candidate.id === template.id)
+      const saved = { ...template, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_SHIFT_TEMPLATES_KEY, exists ? templates.map((candidate) => candidate.id === template.id ? saved : candidate) : [...templates, saved])
+      return { template: saved }
+    }
+    return request<{ template: ShiftTemplate }>(`/api/admin/shift-templates${create ? '' : `/${template.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(template) })
+  },
+  removeShiftTemplate: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_SHIFT_TEMPLATES_KEY, readLocalShiftTemplates().filter((template) => template.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/shift-templates/${id}`, { method: 'DELETE' })
   },
   saveSticky: async (note: StickyNote, create = false): Promise<{ note: StickyNote }> => {
     if (LOCAL_DEMO) {
@@ -604,7 +620,7 @@ export const adminApi = {
       throw reason
     }
   },
-  saveWhiteboard: async (board: WhiteboardBoard, create = false): Promise<{ board: WhiteboardBoard }> => {
+  saveWhiteboard: async (board: WhiteboardBoard, create = false): Promise<{ board: WhiteboardBoard; queued?: boolean }> => {
     if (LOCAL_DEMO) {
       const boards = readLocalWhiteboards()
       const exists = boards.some((candidate) => candidate.id === board.id)
@@ -615,7 +631,7 @@ export const adminApi = {
     if (!navigator.onLine) {
       await queueWhiteboardWrite(board, create)
       window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: board.id } }))
-      return { board }
+      return { board, queued: true }
     }
     try {
       const result = await saveRemoteWhiteboard(board, create)
@@ -626,18 +642,27 @@ export const adminApi = {
       if (navigator.onLine && reason instanceof ApiError && reason.status > 0 && reason.status < 500) throw reason
       await queueWhiteboardWrite(board, create)
       window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: board.id } }))
-      return { board }
+      return { board, queued: true }
     }
   },
   stageWhiteboard: async (board: WhiteboardBoard, create = false): Promise<void> => {
     if (LOCAL_DEMO) return
     await queueWhiteboardWrite(board, create)
   },
-  syncWhiteboards: async (): Promise<{ boards: WhiteboardBoard[] }> => {
+  syncWhiteboards: async (): Promise<{ boards: WhiteboardBoard[]; queued?: boolean }> => {
     await flushOfflineWhiteboards()
     const result = await request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
     await cacheWhiteboards(result.boards, true)
-    return result
+    const pending = await pendingWhiteboards()
+    const merged = [...result.boards]
+    pending.forEach(({ board, delete: deleted, id }) => {
+      const index = merged.findIndex((candidate) => candidate.id === id)
+      if (deleted) { if (index >= 0) merged.splice(index, 1); return }
+      if (!board) return
+      if (index >= 0) merged[index] = board
+      else merged.unshift(board)
+    })
+    return { boards: merged, queued: pending.length > 0 }
   },
   removeWhiteboard: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_WHITEBOARDS_KEY, readLocalWhiteboards().filter((board) => board.id !== id)); return { ok: true } }

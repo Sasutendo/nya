@@ -3,18 +3,24 @@ import type { WhiteboardBoard } from '../types'
 const DATABASE = 'nya-offline-notebooks-v1'
 const BOARDS = 'boards'
 const OUTBOX = 'outbox'
+let databasePromise: Promise<IDBDatabase> | undefined
 
 function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (databasePromise) return databasePromise
+  databasePromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE, 1)
     request.onupgradeneeded = () => {
       const database = request.result
       if (!database.objectStoreNames.contains(BOARDS)) database.createObjectStore(BOARDS, { keyPath: 'id' })
       if (!database.objectStoreNames.contains(OUTBOX)) database.createObjectStore(OUTBOX, { keyPath: 'id' })
     }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {
+      request.result.onversionchange = () => { request.result.close(); databasePromise = undefined }
+      resolve(request.result)
+    }
+    request.onerror = () => { databasePromise = undefined; reject(request.error) }
   })
+  return databasePromise
 }
 
 function transaction<T>(storeName: string, mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
@@ -42,13 +48,25 @@ export async function cachedWhiteboards(): Promise<WhiteboardBoard[]> {
 }
 
 export async function queueWhiteboardWrite(board: WhiteboardBoard, create: boolean): Promise<void> {
-  await transaction<IDBValidKey>(BOARDS, 'readwrite', (store) => store.put(board))
-  await transaction<IDBValidKey>(OUTBOX, 'readwrite', (store) => store.put({ id: board.id, board, create, delete: false }))
+  const database = await openDatabase()
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction([BOARDS, OUTBOX], 'readwrite')
+    tx.objectStore(BOARDS).put(board)
+    tx.objectStore(OUTBOX).put({ id: board.id, board, create, delete: false })
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function queueWhiteboardDelete(id: string): Promise<void> {
-  await transaction<undefined>(BOARDS, 'readwrite', (store) => store.delete(id))
-  await transaction<IDBValidKey>(OUTBOX, 'readwrite', (store) => store.put({ id, delete: true }))
+  const database = await openDatabase()
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction([BOARDS, OUTBOX], 'readwrite')
+    tx.objectStore(BOARDS).delete(id)
+    tx.objectStore(OUTBOX).put({ id, delete: true })
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function pendingWhiteboards(): Promise<Array<{ id: string; board?: WhiteboardBoard; create?: boolean; delete?: boolean }>> {

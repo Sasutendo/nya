@@ -43,6 +43,10 @@ function cacheImage(url: string): HTMLImageElement {
   return image
 }
 
+function isAnimatedImage(stroke: WhiteboardStroke): boolean {
+  return stroke.tool === 'image' && Boolean(stroke.imageUrl?.toLowerCase().includes('.gif'))
+}
+
 function prepareBoardForSave(board: WhiteboardBoard): WhiteboardBoard {
   return {
     ...board,
@@ -160,6 +164,7 @@ export function WhiteboardPage() {
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
   const pendingSaves = useRef(new Map<string, WhiteboardBoard>())
   const saveTimer = useRef<number | undefined>(undefined)
+  const dragPaintFrame = useRef<number | undefined>(undefined)
   const saveVersion = useRef(0)
   const savedRevisions = useRef(new Map<string, number>())
   const [boards, setBoards] = useState<WhiteboardBoard[]>([])
@@ -168,7 +173,7 @@ export function WhiteboardPage() {
   const [activePageId, setActivePageId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'unsaved'>('saved')
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'offline' | 'unsaved'>('saved')
   const [tool, setTool] = useState<WhiteboardTool>('pen')
   const [colour, setColour] = useState('#000000')
   const [markerColour, setMarkerColour] = useState('#f0c44f')
@@ -227,8 +232,8 @@ export function WhiteboardPage() {
   }, [lockedBoardIds])
 
   useEffect(() => {
-    const savedOffline = () => setSaveState('unsaved')
-    const sync = () => { setSaveState('saving'); adminApi.syncWhiteboards().then(({ boards: synced }) => { synced.forEach((candidate) => savedRevisions.current.set(candidate.id, candidate.revision || 1)); setBoards(synced); setActiveId((current) => synced.some((candidate) => candidate.id === current) ? current : synced[0]?.id || ''); setActivePageId((current) => synced.some((candidate) => candidate.pages.some((item) => item.id === current)) ? current : synced[0]?.pages[0]?.id || ''); setSaveState('saved'); setError('') }).catch((reason) => { setSaveState('unsaved'); setError(reason instanceof Error ? reason.message : 'Offline pages could not sync yet.') }) }
+    const savedOffline = () => setSaveState('offline')
+    const sync = () => { setSaveState('saving'); adminApi.syncWhiteboards().then(({ boards: synced, queued }) => { synced.forEach((candidate) => savedRevisions.current.set(candidate.id, candidate.revision || 1)); setBoards(synced); setActiveId((current) => synced.some((candidate) => candidate.id === current) ? current : synced[0]?.id || ''); setActivePageId((current) => synced.some((candidate) => candidate.pages.some((item) => item.id === current)) ? current : synced[0]?.pages[0]?.id || ''); setSaveState(queued ? 'offline' : 'saved'); setError('') }).catch((reason) => { setSaveState('unsaved'); setError(reason instanceof Error ? reason.message : 'Offline pages could not sync yet.') }) }
     window.addEventListener('nya-offline-save', savedOffline)
     window.addEventListener('online', sync)
     return () => { window.removeEventListener('nya-offline-save', savedOffline); window.removeEventListener('online', sync) }
@@ -268,8 +273,7 @@ export function WhiteboardPage() {
     repaint()
     const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? imageCache.get(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
     pendingImages.forEach((image) => image.addEventListener('load', repaint, { once: true }))
-    const animation = page.strokes.some((stroke) => stroke.tool === 'image' && stroke.imageUrl?.toLowerCase().includes('.gif')) ? window.setInterval(() => { if (!document.hidden) repaint() }, 160) : 0
-    return () => { if (animation) window.clearInterval(animation); pendingImages.forEach((image) => image.removeEventListener('load', repaint)) }
+    return () => pendingImages.forEach((image) => image.removeEventListener('load', repaint))
   }, [page, selectedIds])
 
   useEffect(() => {
@@ -284,17 +288,20 @@ export function WhiteboardPage() {
 
   const saveBoard = useCallback((next: WhiteboardBoard) => {
     const version = ++saveVersion.current
-    pendingSaves.current.set(next.id, next)
+    const prepared = prepareBoardForSave(next)
+    pendingSaves.current.set(next.id, prepared)
     setSaveState('saving')
-    void adminApi.stageWhiteboard(prepareBoardForSave(next)).catch(() => undefined)
+    void adminApi.stageWhiteboard(prepared).catch(() => undefined)
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
       const batch = [...pendingSaves.current.values()]
       pendingSaves.current.clear()
       saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+        let queuedOnDevice = false
         for (const candidate of batch) {
           const revision = savedRevisions.current.get(candidate.id) || candidate.revision || 1
-          const result = await adminApi.saveWhiteboard(prepareBoardForSave({ ...candidate, revision }))
+          const result = await adminApi.saveWhiteboard({ ...candidate, revision })
+          queuedOnDevice ||= Boolean(result.queued)
           savedRevisions.current.set(candidate.id, result.board.revision || revision)
           setBoards((current) => current.map((item) => item.id === candidate.id
             ? item.updatedAt === candidate.updatedAt ? result.board : { ...item, revision: result.board.revision, createdAt: result.board.createdAt }
@@ -302,8 +309,9 @@ export function WhiteboardPage() {
           const pending = pendingSaves.current.get(candidate.id)
           if (pending) pendingSaves.current.set(candidate.id, { ...pending, revision: result.board.revision })
         }
-      }).then(() => {
-        if (version === saveVersion.current && pendingSaves.current.size === 0) { setSaveState(navigator.onLine ? 'saved' : 'unsaved'); setError('') }
+        return queuedOnDevice
+      }).then((queuedOnDevice) => {
+        if (version === saveVersion.current && pendingSaves.current.size === 0) { setSaveState(queuedOnDevice ? 'offline' : 'saved'); setError('') }
       }).catch((reason) => {
         batch.forEach((candidate) => { if (!pendingSaves.current.has(candidate.id)) pendingSaves.current.set(candidate.id, candidate) })
         if (version === saveVersion.current) setSaveState('unsaved')
@@ -314,9 +322,9 @@ export function WhiteboardPage() {
   }, [])
 
   useEffect(() => {
-    const preserveLatestDrafts = () => pendingSaves.current.forEach((candidate) => { void adminApi.stageWhiteboard(prepareBoardForSave(candidate)) })
+    const preserveLatestDrafts = () => pendingSaves.current.forEach((candidate) => { void adminApi.stageWhiteboard(candidate) })
     window.addEventListener('pagehide', preserveLatestDrafts)
-    return () => window.removeEventListener('pagehide', preserveLatestDrafts)
+    return () => { window.removeEventListener('pagehide', preserveLatestDrafts); if (dragPaintFrame.current) window.cancelAnimationFrame(dragPaintFrame.current) }
   }, [])
 
   function pointFromEvent(event: React.PointerEvent<HTMLCanvasElement>): WhiteboardPoint {
@@ -400,7 +408,20 @@ export function WhiteboardPage() {
       const now = new Date().toISOString()
       const strokes = page.strokes.map((stroke) => { const original = drag.current?.originals.get(stroke.id); return original ? { ...stroke, updatedAt: now, points: original.map((item) => ({ ...item, x: item.x + dx, y: item.y + dy })) } : stroke })
       drag.current.latestStrokes = strokes
-      setBoards((current) => current.map((candidate) => candidate.id === board?.id ? { ...candidate, pages: candidate.pages.map((item) => item.id === page.id ? { ...item, strokes, updatedAt: now } : item), updatedAt: now } : candidate))
+      if (!dragPaintFrame.current) dragPaintFrame.current = window.requestAnimationFrame(() => {
+        dragPaintFrame.current = undefined
+        const context = canvasRef.current?.getContext('2d')
+        const latest = drag.current?.latestStrokes
+        if (!context || !latest) return
+        context.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
+        latest.forEach((item) => { try { drawStroke(context, item) } catch { /* A damaged object must not stop dragging. */ } })
+        const selectedSet = new Set(drag.current?.ids || [])
+        const bounds = latest.filter((item) => selectedSet.has(item.id)).map(strokeBounds).filter((value): value is NonNullable<typeof value> => Boolean(value))
+        if (bounds.length) {
+          const left = Math.min(...bounds.map((value) => value.left)); const top = Math.min(...bounds.map((value) => value.top)); const right = Math.max(...bounds.map((value) => value.right)); const bottom = Math.max(...bounds.map((value) => value.bottom))
+          context.save(); context.strokeStyle = '#bd5d87'; context.lineWidth = 3; context.setLineDash([12, 8]); context.strokeRect(left - 6, top - 6, right - left + 12, bottom - top + 12); context.restore()
+        }
+      })
       return
     }
     const stroke = activeStroke.current
@@ -423,6 +444,7 @@ export function WhiteboardPage() {
       setSelectedIds(strokesInsideLasso(page?.strokes || [], polygon)); setTool('select'); return
     }
     if (drag.current) {
+      if (dragPaintFrame.current) { window.cancelAnimationFrame(dragPaintFrame.current); dragPaintFrame.current = undefined }
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
       const latestStrokes = drag.current.latestStrokes; drag.current = null
       const current = boardsRef.current.find((candidate) => candidate.id === activeId)
@@ -680,7 +702,7 @@ export function WhiteboardPage() {
           <label className="board-colour-picker" title="Board colour"><input type="color" value={board.pages[0]?.accentColour || '#bd5d87'} onChange={(event) => { const accentColour = event.target.value; updateBoard({ pages: board.pages.map((item) => ({ ...item, accentColour })) }) }} /></label>
           <select className="board-cover-select" value={board.pages[0]?.coverStyle || 'blossom'} onChange={(event) => { const coverStyle = event.target.value as WhiteboardPageData['coverStyle']; updateBoard({ pages: board.pages.map((item) => ({ ...item, coverStyle })) }) }} aria-label="Notebook cover"><option value="blossom">🌸 Blossom cover</option><option value="clinical">✚ Clinical cover</option><option value="night">✦ Night study cover</option><option value="strawberry">🍓 Strawberry cover</option><option value="sakura">🌸 Sakura sky</option><option value="space">🌙 Cozy space</option><option value="cat">🐾 Sleepy cat</option><option value="lavender">Lavender lines</option><option value="ocean">Ocean study</option><option value="sunrise">Soft sunrise</option><option value="checker">Pastel checker</option><option value="minimal">Minimal cover</option></select>
           <button type="button" onClick={() => coverInputRef.current?.click()} disabled={uploadingCover} title="Upload custom notebook cover art"><ImagePlus size={16} />{uploadingCover ? 'Uploading…' : 'Cover art'}</button><input ref={coverInputRef} hidden type="file" accept="image/*" onChange={importCoverArt} />{board.coverImage && <button type="button" onClick={() => updateBoard({ coverImage: undefined })} title="Remove custom cover art"><X size={16} />Cover</button>}
-          <span className={`whiteboard-save-state is-${saveState}`}>{saveState === 'saving' ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}{saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving…' : navigator.onLine ? 'Not saved' : 'Saved offline'}</span>
+          <span className={`whiteboard-save-state is-${saveState}`}>{saveState === 'saving' ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}{saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving…' : saveState === 'offline' ? 'Saved on device · sync pending' : 'Not saved'}</span>
           <button type="button" onClick={() => { void addBoard(board.id) }} title="Create a board inside this board"><FolderPlus size={16} />Subboard</button>
           <button type="button" className={board.published ? 'publish-board-button is-published' : 'publish-board-button'} onClick={() => updateBoard({ published: !board.published })}>{board.published ? <Eye size={16} /> : <EyeOff size={16} />}{board.published ? 'Public' : 'Private'}</button>
           <button type="button" onClick={exportPng}><Download size={16} />PNG</button><button type="button" className="danger" onClick={() => setConfirmDelete('board')}><Trash2 size={16} /></button>
@@ -701,7 +723,7 @@ export function WhiteboardPage() {
           <label className="stylus-toggle"><input type="checkbox" checked={stylusOnly} onChange={(event) => setStylusOnly(event.target.checked)} /><MousePointer2 size={15} />Stylus only</label>
           <div className="zoom-control"><button type="button" className={fitPage ? 'is-active' : ''} onClick={() => setFitPage((value) => !value)} title="Fit the complete page"><Maximize2 size={16} /></button><button type="button" onClick={() => { setFitPage(false); setZoom((value) => Math.max(25, value - 1)) }} title="Zoom out 1%"><ZoomOut size={16} /></button><input type="range" min="25" max="200" step="1" value={zoom} onChange={(event) => { setFitPage(false); setZoom(Number(event.target.value)) }} aria-label="Page zoom slider" /><input className="precise-number" type="number" min="25" max="200" step="1" value={zoom} onChange={(event) => { setFitPage(false); setZoom(Math.max(25, Math.min(200, Number(event.target.value) || 25))) }} aria-label="Exact page zoom" /><span>%</span><button type="button" onClick={() => { setFitPage(false); setZoom((value) => Math.min(200, value + 1)) }} title="Zoom in 1%"><ZoomIn size={16} /></button></div>
         </div>
-        <div ref={scrollRef} className={`whiteboard-scroll ${fitPage ? 'is-fit' : ''}`} onDragOver={(event) => event.preventDefault()} onDrop={dropOnPage} onTouchStart={(event) => { if (tool === 'select' && event.touches.length === 1) swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => { if (!swipeStart.current || !event.changedTouches[0]) return; const dx = event.changedTouches[0].clientX - swipeStart.current.x; const dy = event.changedTouches[0].clientY - swipeStart.current.y; if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.4) turnPage(dx < 0 ? 1 : -1); swipeStart.current = null }}><div ref={paperRef} className={`whiteboard-paper size-${page.paperSize || 'a4'} orientation-${page.orientation || 'portrait'} background-${page.background}`} style={{ width: `${displayWidth}px`, height: `${displayHeight}px`, '--ruling-x': `${(page.rulingSize || 20) / BOARD_WIDTH * 100}%`, '--ruling-y': `${(page.rulingSize || 20) / BOARD_HEIGHT * 100}%` } as React.CSSProperties}><canvas ref={canvasRef} width={BOARD_WIDTH} height={BOARD_HEIGHT} onPointerDown={beginStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onPointerEnter={(event) => updateBrushCursor(event)} onPointerLeave={(event) => updateBrushCursor(event, false)} /><canvas ref={lassoCanvasRef} className="whiteboard-lasso-layer" width={BOARD_WIDTH} height={BOARD_HEIGHT} aria-hidden="true" /><div ref={brushCursorRef} className={`whiteboard-brush-cursor is-${tool}`} aria-hidden="true" />{editor && <><textarea autoFocus className={`whiteboard-inline-editor ${editor.kind === 'note' ? 'is-note' : ''}`} style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%`, width: `${(editor.kind === 'note' ? 320 : Math.min(600, BOARD_WIDTH - editor.point.x - 20)) * paperScale.y}px`, minHeight: `${(editor.kind === 'note' ? 230 : Math.max(70, fontSize * 2.7)) * paperScale.y}px`, padding: editor.kind === 'note' ? `${24 * paperScale.y}px` : '0', fontFamily: fontFamilies[fontFamily], fontSize: `${fontSize * paperScale.y}px`, lineHeight: 1.25, transform: `scaleX(${paperScale.x / Math.max(.001, paperScale.y)})`, transformOrigin: 'top left' }} value={editor.value} onChange={(event) => setEditor({ ...editor, value: event.target.value })} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commitEditor(); if (event.key === 'Escape') setEditor(null) }} placeholder={editor.kind === 'note' ? 'Write a little note…' : 'Type directly on the page…'} /><div className="whiteboard-inline-actions" style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%` }}><button type="button" onClick={commitEditor}><Check size={14} />Place</button><button type="button" onClick={() => setEditor(null)}><X size={14} /></button></div></>}</div></div>
+        <div ref={scrollRef} className={`whiteboard-scroll ${fitPage ? 'is-fit' : ''}`} onDragOver={(event) => event.preventDefault()} onDrop={dropOnPage} onTouchStart={(event) => { if (tool === 'select' && event.touches.length === 1) swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => { if (!swipeStart.current || !event.changedTouches[0]) return; const dx = event.changedTouches[0].clientX - swipeStart.current.x; const dy = event.changedTouches[0].clientY - swipeStart.current.y; if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.4) turnPage(dx < 0 ? 1 : -1); swipeStart.current = null }}><div ref={paperRef} className={`whiteboard-paper size-${page.paperSize || 'a4'} orientation-${page.orientation || 'portrait'} background-${page.background}`} style={{ width: `${displayWidth}px`, height: `${displayHeight}px`, '--ruling-x': `${(page.rulingSize || 20) / BOARD_WIDTH * 100}%`, '--ruling-y': `${(page.rulingSize || 20) / BOARD_HEIGHT * 100}%` } as React.CSSProperties}><canvas ref={canvasRef} width={BOARD_WIDTH} height={BOARD_HEIGHT} onPointerDown={beginStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onPointerEnter={(event) => updateBrushCursor(event)} onPointerLeave={(event) => updateBrushCursor(event, false)} />{page.strokes.filter((stroke) => isAnimatedImage(stroke) && stroke.points[0]).map((stroke) => <img key={`live-${stroke.id}`} className="whiteboard-live-gif" src={reliableMediaUrl(stroke.imageUrl || '')} alt="" style={{ left: `${stroke.points[0].x / BOARD_WIDTH * 100}%`, top: `${stroke.points[0].y / BOARD_HEIGHT * 100}%`, width: `${(stroke.width || 420) / BOARD_WIDTH * 100}%`, height: `${(stroke.height || 300) / BOARD_HEIGHT * 100}%` }} />)}<canvas ref={lassoCanvasRef} className="whiteboard-lasso-layer" width={BOARD_WIDTH} height={BOARD_HEIGHT} aria-hidden="true" /><div ref={brushCursorRef} className={`whiteboard-brush-cursor is-${tool}`} aria-hidden="true" />{editor && <><textarea autoFocus className={`whiteboard-inline-editor ${editor.kind === 'note' ? 'is-note' : ''}`} style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%`, width: `${(editor.kind === 'note' ? 320 : Math.min(600, BOARD_WIDTH - editor.point.x - 20)) * paperScale.y}px`, minHeight: `${(editor.kind === 'note' ? 230 : Math.max(70, fontSize * 2.7)) * paperScale.y}px`, padding: editor.kind === 'note' ? `${24 * paperScale.y}px` : '0', fontFamily: fontFamilies[fontFamily], fontSize: `${fontSize * paperScale.y}px`, lineHeight: 1.25, transform: `scaleX(${paperScale.x / Math.max(.001, paperScale.y)})`, transformOrigin: 'top left' }} value={editor.value} onChange={(event) => setEditor({ ...editor, value: event.target.value })} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commitEditor(); if (event.key === 'Escape') setEditor(null) }} placeholder={editor.kind === 'note' ? 'Write a little note…' : 'Type directly on the page…'} /><div className="whiteboard-inline-actions" style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%` }}><button type="button" onClick={commitEditor}><Check size={14} />Place</button><button type="button" onClick={() => setEditor(null)}><X size={14} /></button></div></>}</div></div>
         <p className="whiteboard-tip"><RotateCcw size={14} />With <strong>Stylus only</strong>, draw with the pen, drag the paper in any direction with one finger, and pinch with two fingers to zoom.</p>
       </section>}
       {confirmDelete && <div className="whiteboard-dialog-backdrop" role="presentation" onMouseDown={() => setConfirmDelete(null)}><section className="whiteboard-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" onMouseDown={(event) => event.stopPropagation()}><h2 id="delete-dialog-title">Delete {confirmDelete === 'board' ? 'notebook' : 'page'}?</h2><p>{confirmDelete === 'board' ? `“${board?.title}” and all its pages will be permanently removed.` : `“${page?.name}” will be permanently removed.`}</p><div><button type="button" onClick={() => setConfirmDelete(null)}>Keep it</button><button type="button" className="danger" onClick={() => { const action = confirmDelete; setConfirmDelete(null); if (action === 'board') void deleteBoard(); else deletePage() }}><Trash2 size={15} />Delete</button></div></section></div>}

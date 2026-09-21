@@ -46,9 +46,26 @@ interface CalendarRow {
   event_date: string
   end_date: string | null
   event_time: string | null
-  category: 'school' | 'placement' | 'assignment' | 'exam' | 'milestone' | 'personal'
+  end_time: string | null
+  category: string
   visibility: 'public' | 'private'
+  colour: string
+  template_id: string | null
   related_item_slug: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface ShiftTemplateRow {
+  id: string
+  title: string
+  short_label: string
+  description: string
+  start_time: string | null
+  end_time: string | null
+  category: string
+  colour: string
+  visibility: 'public' | 'private'
   created_at: string
   updated_at: string
 }
@@ -190,8 +207,18 @@ function mapItem(row: ItemRow, includePrivate = false, summary = false) {
 function mapCalendarEvent(row: CalendarRow) {
   return {
     id: row.id, title: row.title, description: row.description, date: row.event_date,
-    endDate: row.end_date || undefined, time: row.event_time || undefined,
+    endDate: row.end_date || undefined, time: row.event_time || undefined, endTime: row.end_time || undefined,
     category: row.category, visibility: row.visibility, relatedItemSlug: row.related_item_slug || undefined,
+    colour: row.colour || undefined, templateId: row.template_id || undefined,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  }
+}
+
+function mapShiftTemplate(row: ShiftTemplateRow) {
+  return {
+    id: row.id, title: row.title, shortLabel: row.short_label, description: row.description,
+    startTime: row.start_time || undefined, endTime: row.end_time || undefined,
+    category: row.category, colour: row.colour, visibility: row.visibility,
     createdAt: row.created_at, updatedAt: row.updated_at,
   }
 }
@@ -476,15 +503,20 @@ async function recordWhiteboardView(request: Request, id: string, env: Env): Pro
 }
 
 function validDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) }
+function validTime(value: string): boolean { return /^([01]\d|2[0-3]):[0-5]\d$/.test(value) }
+function validColour(value: string): boolean { return /^#[0-9a-f]{6}$/i.test(value) }
+const CALENDAR_CATEGORIES = ['school', 'placement', 'early_shift', 'late_shift', 'night_shift', 'free', 'vacation', 'sick', 'training', 'lecture', 'study', 'assignment', 'exam', 'appointment', 'milestone', 'personal', 'other']
 
 async function adminPlanner(env: Env): Promise<Response> {
-  const [events, notes, tasks] = await Promise.all([
+  const [events, templates, notes, tasks] = await Promise.all([
     env.DB.prepare('SELECT * FROM calendar_events ORDER BY event_date, COALESCE(event_time, \'23:59\')').all<CalendarRow>(),
+    env.DB.prepare('SELECT * FROM planner_shift_templates ORDER BY updated_at DESC').all<ShiftTemplateRow>(),
     env.DB.prepare('SELECT * FROM planner_sticky_notes ORDER BY updated_at DESC').all<StickyRow>(),
     env.DB.prepare('SELECT * FROM planner_tasks ORDER BY completed, CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, updated_at DESC').all<TaskRow>(),
   ])
   return json({
     events: (events.results || []).map(mapCalendarEvent),
+    templates: (templates.results || []).map(mapShiftTemplate),
     notes: (notes.results || []).map(mapSticky),
     tasks: (tasks.results || []).map(mapTask),
   })
@@ -628,27 +660,59 @@ async function saveCalendarEvent(request: Request, env: Env, existingId?: string
   const date = cleanText(body.date, 10)
   const endDate = cleanText(body.endDate, 10)
   const time = cleanText(body.time, 5)
+  const endTime = cleanText(body.endTime, 5)
   const category = cleanText(body.category, 30)
   const visibility = cleanText(body.visibility, 10)
+  const colour = cleanText(body.colour, 20) || '#d37f9c'
+  const templateId = cleanText(body.templateId, 100)
   if (!title) return error('Add an event title.')
   if (!validDate(date) || (endDate && !validDate(endDate))) return error('Choose a valid event date.')
-  if (time && !/^\d{2}:\d{2}$/.test(time)) return error('Choose a valid event time.')
-  if (!['school', 'placement', 'assignment', 'exam', 'milestone', 'personal'].includes(category)) return error('Choose a valid event category.')
+  if ((time && !validTime(time)) || (endTime && !validTime(endTime))) return error('Choose a valid event time.')
+  if (!CALENDAR_CATEGORIES.includes(category)) return error('Choose a valid event category.')
   if (!['public', 'private'].includes(visibility)) return error('Choose public or private visibility.')
+  if (!validColour(colour)) return error('Choose a valid event colour.')
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE calendar_events SET title=?,description=?,event_date=?,end_date=?,event_time=?,category=?,visibility=?,related_item_slug=?,updated_at=? WHERE id=?').bind(
-      title, description, date, endDate || null, time || null, category, visibility, cleanText(body.relatedItemSlug, 100) || null, now, id,
+    const result = await env.DB.prepare('UPDATE calendar_events SET title=?,description=?,event_date=?,end_date=?,event_time=?,end_time=?,category=?,visibility=?,colour=?,template_id=?,related_item_slug=?,updated_at=? WHERE id=?').bind(
+      title, description, date, endDate || null, time || null, endTime || null, category, visibility, colour, templateId || null, cleanText(body.relatedItemSlug, 100) || null, now, id,
     ).run()
     if (!result.meta.changes) return error('This calendar event could not be found.', 404)
   } else {
-    await env.DB.prepare('INSERT INTO calendar_events (id,title,description,event_date,end_date,event_time,category,visibility,related_item_slug,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(
-      id, title, description, date, endDate || null, time || null, category, visibility, cleanText(body.relatedItemSlug, 100) || null, now, now,
+    await env.DB.prepare('INSERT INTO calendar_events (id,title,description,event_date,end_date,event_time,end_time,category,visibility,colour,template_id,related_item_slug,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(
+      id, title, description, date, endDate || null, time || null, endTime || null, category, visibility, colour, templateId || null, cleanText(body.relatedItemSlug, 100) || null, now, now,
     ).run()
   }
   const row = await env.DB.prepare('SELECT * FROM calendar_events WHERE id=?').bind(id).first<CalendarRow>()
   return json({ event: mapCalendarEvent(row!) }, existingId ? 200 : 201)
+}
+
+async function saveShiftTemplate(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The shift template is not valid JSON.')
+  const title = cleanText(body.title, 100)
+  const shortLabel = cleanText(body.shortLabel, 8)
+  const description = cleanText(body.description, 500)
+  const startTime = cleanText(body.startTime, 5)
+  const endTime = cleanText(body.endTime, 5)
+  const category = cleanText(body.category, 30)
+  const colour = cleanText(body.colour, 20)
+  const visibility = cleanText(body.visibility, 10)
+  if (!title) return error('Add a shift name.')
+  if ((startTime && !validTime(startTime)) || (endTime && !validTime(endTime))) return error('Choose valid shift times.')
+  if (!CALENDAR_CATEGORIES.includes(category)) return error('Choose a valid shift category.')
+  if (!validColour(colour)) return error('Choose a valid shift colour.')
+  if (!['public', 'private'].includes(visibility)) return error('Choose public or private visibility.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE planner_shift_templates SET title=?,short_label=?,description=?,start_time=?,end_time=?,category=?,colour=?,visibility=?,updated_at=? WHERE id=?').bind(title, shortLabel, description, startTime || null, endTime || null, category, colour, visibility, now, id).run()
+    if (!result.meta.changes) return error('This shift template could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO planner_shift_templates (id,title,short_label,description,start_time,end_time,category,colour,visibility,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(id, title, shortLabel, description, startTime || null, endTime || null, category, colour, visibility, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM planner_shift_templates WHERE id=?').bind(id).first<ShiftTemplateRow>()
+  return json({ template: mapShiftTemplate(row!) }, existingId ? 200 : 201)
 }
 
 async function saveSticky(request: Request, env: Env, existingId?: string): Promise<Response> {
@@ -1010,6 +1074,15 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
       if (request.method === 'DELETE') {
         const result = await env.DB.prepare('DELETE FROM calendar_events WHERE id=?').bind(id).run()
         return result.meta.changes ? json({ ok: true }) : error('This calendar event could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/shift-templates') return saveShiftTemplate(request, env)
+    if (path.startsWith('/api/admin/shift-templates/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/shift-templates/'.length))
+      if (request.method === 'PUT') return saveShiftTemplate(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM planner_shift_templates WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This shift template could not be found.', 404)
       }
     }
     if (request.method === 'POST' && path === '/api/admin/sticky-notes') return saveSticky(request, env)
