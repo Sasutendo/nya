@@ -4,9 +4,9 @@ const now = new Date().toISOString()
 const today = now.slice(0, 10)
 
 export const DEMO_STUDY_CARDS: StudyCard[] = [
-  { id: 'demo_card_1', question: 'What are the five moments for hand hygiene?', answer: 'Before touching a patient; before a clean or aseptic procedure; after body-fluid exposure risk; after touching a patient; after touching patient surroundings.', category: 'Hygiene', createdAt: now, updatedAt: now },
-  { id: 'demo_card_2', question: 'What does SBAR stand for?', answer: 'Situation, Background, Assessment and Recommendation.', category: 'Communication', createdAt: now, updatedAt: now },
-  { id: 'demo_card_3', question: 'What should I do if I am unsure during practical care?', answer: 'Pause, keep the person safe, follow current local guidance and ask the qualified supervisor responsible for the situation.', category: 'Safe learning', createdAt: now, updatedAt: now },
+  { id: 'demo_card_1', question: 'What are the five moments for hand hygiene?', answer: 'Before touching a patient; before a clean or aseptic procedure; after body-fluid exposure risk; after touching a patient; after touching patient surroundings.', category: 'Hygiene', published: true, createdAt: now, updatedAt: now },
+  { id: 'demo_card_2', question: 'What does SBAR stand for?', answer: 'Situation, Background, Assessment and Recommendation.', category: 'Communication', published: true, createdAt: now, updatedAt: now },
+  { id: 'demo_card_3', question: 'What should I do if I am unsure during practical care?', answer: 'Pause, keep the person safe, follow current local guidance and ask the qualified supervisor responsible for the situation.', category: 'Safe learning', published: true, createdAt: now, updatedAt: now },
 ]
 
 export const DEMO_NURSING_SKILLS: NursingSkill[] = [

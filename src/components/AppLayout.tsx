@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Search, Sun, X } from 'lucide-react'
+import { BookOpen, CalendarDays, FileText, FolderKanban, Languages, Layers3, LockKeyhole, Menu, Moon, NotebookTabs, Presentation, Search, Sun, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useSite, useTheme } from '../App'
 import { classes } from '../lib/format'
@@ -61,6 +61,7 @@ export function AppLayout() {
     { to: '/library', label: text('Library', 'Bibliothek'), icon: BookOpen },
     { to: '/presentations', label: text('Presentations', 'Präsentationen'), icon: Presentation },
     { to: '/notes', label: text('Notes', 'Notizen'), icon: FileText },
+    { to: '/flashcards', label: text('Flashcards', 'Karteikarten'), icon: Layers3 },
     { to: '/projects', label: text('Projects', 'Projekte'), icon: FolderKanban },
     { to: '/calendar', label: text('Calendar', 'Kalender'), icon: CalendarDays },
     { to: '/notebooks', label: text('Notebooks', 'Lernhefte'), icon: NotebookTabs },

@@ -46,9 +46,26 @@ interface CalendarRow {
   event_date: string
   end_date: string | null
   event_time: string | null
-  category: 'school' | 'placement' | 'assignment' | 'exam' | 'milestone' | 'personal'
+  end_time: string | null
+  category: string
   visibility: 'public' | 'private'
+  colour: string
+  template_id: string | null
   related_item_slug: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface ShiftTemplateRow {
+  id: string
+  title: string
+  short_label: string
+  description: string
+  start_time: string | null
+  end_time: string | null
+  category: string
+  colour: string
+  visibility: 'public' | 'private'
   created_at: string
   updated_at: string
 }
@@ -76,8 +93,18 @@ interface StudyCardRow {
   question: string
   answer: string
   category: string
+  question_ink_json: string
+  answer_ink_json: string
+  published: number
   created_at: string
   updated_at: string
+}
+
+interface StudyCardInkStroke {
+  id: string
+  colour: string
+  size: number
+  points: Array<{ x: number; y: number; pressure: number }>
 }
 
 interface NursingSkillRow {
@@ -109,6 +136,16 @@ interface WhiteboardRow {
   created_at: string
   updated_at: string
   sort_order: number
+  view_count: number
+}
+
+interface StoredWhiteboardV2 {
+  format: 'nya-whiteboard-v2'
+  pages: Array<Record<string, unknown>>
+  coverImage?: string
+  parentId?: string
+  revision: number
+  deletedPageIds?: string[]
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -170,8 +207,18 @@ function mapItem(row: ItemRow, includePrivate = false, summary = false) {
 function mapCalendarEvent(row: CalendarRow) {
   return {
     id: row.id, title: row.title, description: row.description, date: row.event_date,
-    endDate: row.end_date || undefined, time: row.event_time || undefined,
+    endDate: row.end_date || undefined, time: row.event_time || undefined, endTime: row.end_time || undefined,
     category: row.category, visibility: row.visibility, relatedItemSlug: row.related_item_slug || undefined,
+    colour: row.colour || undefined, templateId: row.template_id || undefined,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  }
+}
+
+function mapShiftTemplate(row: ShiftTemplateRow) {
+  return {
+    id: row.id, title: row.title, shortLabel: row.short_label, description: row.description,
+    startTime: row.start_time || undefined, endTime: row.end_time || undefined,
+    category: row.category, colour: row.colour, visibility: row.visibility,
     createdAt: row.created_at, updatedAt: row.updated_at,
   }
 }
@@ -185,7 +232,17 @@ function mapTask(row: TaskRow) {
 }
 
 function mapStudyCard(row: StudyCardRow) {
-  return { id: row.id, question: row.question, answer: row.answer, category: row.category, createdAt: row.created_at, updatedAt: row.updated_at }
+  return {
+    id: row.id,
+    question: row.question,
+    answer: row.answer,
+    category: row.category,
+    questionInk: parseJson<StudyCardInkStroke[]>(row.question_ink_json || '[]', []),
+    answerInk: parseJson<StudyCardInkStroke[]>(row.answer_ink_json || '[]', []),
+    published: Boolean(row.published),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function mapNursingSkill(row: NursingSkillRow) {
@@ -197,9 +254,23 @@ function mapReflection(row: ReflectionRow) {
 }
 
 function mapWhiteboard(row: WhiteboardRow) {
-  const stored = parseJson<Array<Record<string, unknown>>>(row.strokes_json, [])
-  const pages = stored[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: stored }] : stored
-  return { id: row.id, title: row.title, pages, published: Boolean(row.published), sortOrder: row.sort_order || 0, createdAt: row.created_at, updatedAt: row.updated_at }
+  const stored = parseJson<Array<Record<string, unknown>> | StoredWhiteboardV2>(row.strokes_json, [])
+  const rawPages = Array.isArray(stored) ? stored : stored.pages
+  const pages = rawPages[0]?.tool ? [{ id: `${row.id}_page_1`, name: 'Page 1', background: row.background, strokes: rawPages }] : rawPages
+  return {
+    id: row.id,
+    title: row.title,
+    pages,
+    published: Boolean(row.published),
+    coverImage: Array.isArray(stored) ? undefined : stored.coverImage,
+    parentId: Array.isArray(stored) ? undefined : stored.parentId,
+    revision: Array.isArray(stored) ? 1 : Math.max(1, stored.revision || 1),
+    deletedPageIds: Array.isArray(stored) ? [] : stored.deletedPageIds || [],
+    sortOrder: row.sort_order || 0,
+    viewCount: row.view_count || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -270,9 +341,37 @@ function cleanText(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
+function cleanStudyCardInk(value: unknown): StudyCardInkStroke[] {
+  if (!Array.isArray(value)) return []
+  let remainingPoints = 20_000
+  return value.slice(0, 250).flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object' || remainingPoints <= 0) return []
+    const stroke = candidate as Record<string, unknown>
+    const rawPoints = Array.isArray(stroke.points) ? stroke.points.slice(0, Math.min(800, remainingPoints)) : []
+    const points = rawPoints.flatMap((candidatePoint) => {
+      if (!candidatePoint || typeof candidatePoint !== 'object') return []
+      const point = candidatePoint as Record<string, unknown>
+      const x = Number(point.x)
+      const y = Number(point.y)
+      const pressure = Number(point.pressure)
+      if (![x, y, pressure].every(Number.isFinite)) return []
+      return [{ x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)), pressure: Math.max(0, Math.min(1, pressure)) }]
+    })
+    remainingPoints -= points.length
+    if (!points.length) return []
+    const colour = cleanText(stroke.colour, 20)
+    return [{
+      id: cleanText(stroke.id, 100) || crypto.randomUUID(),
+      colour: /^#[0-9a-f]{6}$/i.test(colour) ? colour : '#302128',
+      size: Math.max(.5, Math.min(12, Number(stroke.size) || 2.4)),
+      points,
+    }]
+  })
+}
+
 function safeMediaUrl(value: unknown): string {
   if (typeof value !== 'string') return ''
-  if (value.startsWith('/uploads/') || value.startsWith('/images/')) return value.slice(0, 2000)
+  if (value.startsWith('/uploads/') || value.startsWith('/images/') || value.startsWith('/api/public/media/')) return value.slice(0, 2000)
   try {
     const url = new URL(value)
     return ['https:', 'http:'].includes(url.protocol) ? value.slice(0, 2000) : ''
@@ -385,16 +484,39 @@ async function publicWhiteboards(env: Env): Promise<Response> {
   return json({ boards: (result.results || []).map(mapWhiteboard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
 }
 
+async function publicStudyCards(env: Env): Promise<Response> {
+  const result = await env.DB.prepare('SELECT * FROM study_cards WHERE published=1 ORDER BY updated_at DESC').all<StudyCardRow>()
+  return json({ cards: (result.results || []).map(mapStudyCard) }, 200, { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' })
+}
+
+async function recordWhiteboardView(request: Request, id: string, env: Env): Promise<Response> {
+  if (!isSameOrigin(request)) return error('Cross-site requests are not allowed.', 403)
+  const body = await parseBody(request)
+  const viewId = cleanText(body?.viewId, 100)
+  if (!/^[a-zA-Z0-9_-]{16,100}$/.test(viewId)) return error('A valid view identifier is required.')
+  const board = await env.DB.prepare('SELECT id,view_count FROM whiteboards WHERE id=? AND published=1').bind(id).first<{ id: string; view_count: number }>()
+  if (!board) return error('This published notebook could not be found.', 404)
+  const inserted = await env.DB.prepare('INSERT OR IGNORE INTO whiteboard_views (whiteboard_id,view_id) VALUES (?,?)').bind(id, viewId).run()
+  if (inserted.meta.changes) await env.DB.prepare('UPDATE whiteboards SET view_count=view_count+1 WHERE id=?').bind(id).run()
+  const current = await env.DB.prepare('SELECT view_count FROM whiteboards WHERE id=?').bind(id).first<{ view_count: number }>()
+  return json({ viewCount: current?.view_count ?? board.view_count })
+}
+
 function validDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) }
+function validTime(value: string): boolean { return /^([01]\d|2[0-3]):[0-5]\d$/.test(value) }
+function validColour(value: string): boolean { return /^#[0-9a-f]{6}$/i.test(value) }
+const CALENDAR_CATEGORIES = ['school', 'placement', 'early_shift', 'late_shift', 'night_shift', 'free', 'vacation', 'sick', 'training', 'lecture', 'study', 'assignment', 'exam', 'appointment', 'milestone', 'personal', 'other']
 
 async function adminPlanner(env: Env): Promise<Response> {
-  const [events, notes, tasks] = await Promise.all([
+  const [events, templates, notes, tasks] = await Promise.all([
     env.DB.prepare('SELECT * FROM calendar_events ORDER BY event_date, COALESCE(event_time, \'23:59\')').all<CalendarRow>(),
+    env.DB.prepare('SELECT * FROM planner_shift_templates ORDER BY updated_at DESC').all<ShiftTemplateRow>(),
     env.DB.prepare('SELECT * FROM planner_sticky_notes ORDER BY updated_at DESC').all<StickyRow>(),
     env.DB.prepare('SELECT * FROM planner_tasks ORDER BY completed, CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, updated_at DESC').all<TaskRow>(),
   ])
   return json({
     events: (events.results || []).map(mapCalendarEvent),
+    templates: (templates.results || []).map(mapShiftTemplate),
     notes: (notes.results || []).map(mapSticky),
     tasks: (tasks.results || []).map(mapTask),
   })
@@ -426,6 +548,8 @@ function validWhiteboardStrokes(value: unknown): value is Array<Record<string, u
     const candidate = stroke as Record<string, unknown>
     if (!['pen', 'highlighter', 'eraser', 'text', 'line', 'arrow', 'circle', 'rectangle', 'note', 'link', 'image'].includes(String(candidate.tool))) return false
     if (!/^#[0-9a-f]{6}$/i.test(String(candidate.colour)) || typeof candidate.size !== 'number' || candidate.size < .5 || candidate.size > 100) return false
+    if (candidate.opacity !== undefined && (typeof candidate.opacity !== 'number' || candidate.opacity < .05 || candidate.opacity > 1)) return false
+    if (candidate.updatedAt !== undefined && !cleanText(candidate.updatedAt, 40)) return false
     if (!Array.isArray(candidate.points) || candidate.points.length > 20_000) return false
     if (candidate.tool === 'text' || candidate.tool === 'note' || candidate.tool === 'link') {
       if (!cleanText(candidate.text, 4000) || !['handwritten', 'sans', 'serif', 'mono'].includes(String(candidate.fontFamily)) || typeof candidate.fontSize !== 'number' || candidate.fontSize < 10 || candidate.fontSize > 160) return false
@@ -450,10 +574,32 @@ function validWhiteboardPages(value: unknown): value is Array<Record<string, unk
   return value.every((page) => {
     if (!page || typeof page !== 'object') return false
     const candidate = page as Record<string, unknown>
+    const deletedStrokeIds = candidate.deletedStrokeIds
+    if (deletedStrokeIds !== undefined && (!Array.isArray(deletedStrokeIds) || deletedStrokeIds.length > 12_000 || deletedStrokeIds.some((id) => !cleanText(id, 100)))) return false
     return Boolean(cleanText(candidate.id, 100) && cleanText(candidate.name, 100))
       && ['plain', 'grid', 'lined', 'dots', 'margin', 'cornell', 'checklist'].includes(String(candidate.background))
       && validWhiteboardStrokes(candidate.strokes)
   })
+}
+
+function storedWhiteboardMetadata(row: WhiteboardRow): Pick<StoredWhiteboardV2, 'parentId' | 'revision' | 'deletedPageIds'> {
+  const stored = parseJson<Array<Record<string, unknown>> | StoredWhiteboardV2>(row.strokes_json, [])
+  return Array.isArray(stored) ? { revision: 1, deletedPageIds: [] } : { parentId: stored.parentId, revision: Math.max(1, stored.revision || 1), deletedPageIds: stored.deletedPageIds || [] }
+}
+
+async function validWhiteboardParent(env: Env, id: string, parentId?: string): Promise<boolean> {
+  if (!parentId) return true
+  const seen = new Set([id])
+  let current: string | undefined = parentId
+  while (current) {
+    if (seen.has(current)) return false
+    seen.add(current)
+    if (seen.size > 12) return false
+    const row: WhiteboardRow | null = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(current).first<WhiteboardRow>()
+    if (!row) return false
+    current = storedWhiteboardMetadata(row).parentId
+  }
+  return true
 }
 
 async function saveWhiteboard(request: Request, env: Env, existingId?: string): Promise<Response> {
@@ -462,21 +608,48 @@ async function saveWhiteboard(request: Request, env: Env, existingId?: string): 
   const title = cleanText(body.title, 160) || 'Untitled board'
   if (!validWhiteboardPages(body.pages)) return error('The whiteboard notebook is too large or contains invalid pages.', 413)
   const background = cleanText(body.pages[0].background, 20)
-  const strokesJson = JSON.stringify(body.pages)
   const published = body.published ? 1 : 0
   const sortOrder = typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder) ? Math.max(0, Math.floor(body.sortOrder)) : 0
-  if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const coverImage = safeMediaUrl(body.coverImage) || undefined
+  const parentId = cleanText(body.parentId, 100) || undefined
+  if (!await validWhiteboardParent(env, id, parentId)) return error('Choose a valid parent board. Boards cannot be nested inside themselves.', 409)
+  const deletedPageIds = Array.isArray(body.deletedPageIds) ? body.deletedPageIds.map((value) => cleanText(value, 100)).filter(Boolean).slice(0, 5000) : []
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,sort_order=?,updated_at=? WHERE id=?').bind(title, background, strokesJson, published, sortOrder, now, id).run()
-    if (!result.meta.changes) return error('This whiteboard could not be found.', 404)
+    const current = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
+    if (!current) return error('This whiteboard could not be found.', 404)
+    const metadata = storedWhiteboardMetadata(current)
+    const incomingRevision = typeof body.revision === 'number' && Number.isFinite(body.revision) ? Math.max(1, Math.floor(body.revision)) : 1
+    if (incomingRevision !== metadata.revision) return json({ error: 'This notebook changed on another device. The newest edits will be combined.', board: mapWhiteboard(current) }, 409)
+    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, coverImage, parentId, revision: metadata.revision + 1, deletedPageIds } satisfies StoredWhiteboardV2)
+    if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
+    const result = await env.DB.prepare('UPDATE whiteboards SET title=?,background=?,strokes_json=?,published=?,sort_order=?,updated_at=? WHERE id=? AND strokes_json=?').bind(title, background, strokesJson, published, sortOrder, now, id, current.strokes_json).run()
+    if (!result.meta.changes) {
+      const latest = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
+      return latest ? json({ error: 'This notebook changed while it was saving. The newest edits will be combined.', board: mapWhiteboard(latest) }, 409) : error('This whiteboard could not be found.', 404)
+    }
   } else {
+    const strokesJson = JSON.stringify({ format: 'nya-whiteboard-v2', pages: body.pages, coverImage, parentId, revision: 1, deletedPageIds } satisfies StoredWhiteboardV2)
+    if (strokesJson.length > 8_000_000) return error('This notebook has reached its 8 MB limit. Move some pages into a new notebook to keep it fast.', 413)
     await env.DB.prepare('INSERT INTO whiteboards (id,title,background,strokes_json,published,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, title, background, strokesJson, published, sortOrder, now, now).run()
   }
-  if (request.headers.get('X-Nya-Compact') === '1') return json({ id, updatedAt: now }, existingId ? 200 : 201)
   const row = await env.DB.prepare('SELECT * FROM whiteboards WHERE id=?').bind(id).first<WhiteboardRow>()
   return json({ board: mapWhiteboard(row!) }, existingId ? 200 : 201)
+}
+
+async function deleteWhiteboard(env: Env, id: string): Promise<Response> {
+  const rows = (await env.DB.prepare('SELECT * FROM whiteboards').all<WhiteboardRow>()).results || []
+  if (!rows.some((row) => row.id === id)) return error('This whiteboard could not be found.', 404)
+  const now = new Date().toISOString()
+  const detachChildren = rows.flatMap((row) => {
+    const stored = parseJson<Array<Record<string, unknown>> | StoredWhiteboardV2>(row.strokes_json, [])
+    if (Array.isArray(stored) || stored.parentId !== id) return []
+    const next: StoredWhiteboardV2 = { ...stored, parentId: undefined, revision: Math.max(1, stored.revision || 1) + 1 }
+    return [env.DB.prepare('UPDATE whiteboards SET strokes_json=?,updated_at=? WHERE id=? AND strokes_json=?').bind(JSON.stringify(next), now, row.id, row.strokes_json)]
+  })
+  await env.DB.batch([...detachChildren, env.DB.prepare('DELETE FROM whiteboards WHERE id=?').bind(id)])
+  return json({ ok: true })
 }
 
 async function saveCalendarEvent(request: Request, env: Env, existingId?: string): Promise<Response> {
@@ -487,27 +660,59 @@ async function saveCalendarEvent(request: Request, env: Env, existingId?: string
   const date = cleanText(body.date, 10)
   const endDate = cleanText(body.endDate, 10)
   const time = cleanText(body.time, 5)
+  const endTime = cleanText(body.endTime, 5)
   const category = cleanText(body.category, 30)
   const visibility = cleanText(body.visibility, 10)
+  const colour = cleanText(body.colour, 20) || '#d37f9c'
+  const templateId = cleanText(body.templateId, 100)
   if (!title) return error('Add an event title.')
   if (!validDate(date) || (endDate && !validDate(endDate))) return error('Choose a valid event date.')
-  if (time && !/^\d{2}:\d{2}$/.test(time)) return error('Choose a valid event time.')
-  if (!['school', 'placement', 'assignment', 'exam', 'milestone', 'personal'].includes(category)) return error('Choose a valid event category.')
+  if ((time && !validTime(time)) || (endTime && !validTime(endTime))) return error('Choose a valid event time.')
+  if (!CALENDAR_CATEGORIES.includes(category)) return error('Choose a valid event category.')
   if (!['public', 'private'].includes(visibility)) return error('Choose public or private visibility.')
+  if (!validColour(colour)) return error('Choose a valid event colour.')
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE calendar_events SET title=?,description=?,event_date=?,end_date=?,event_time=?,category=?,visibility=?,related_item_slug=?,updated_at=? WHERE id=?').bind(
-      title, description, date, endDate || null, time || null, category, visibility, cleanText(body.relatedItemSlug, 100) || null, now, id,
+    const result = await env.DB.prepare('UPDATE calendar_events SET title=?,description=?,event_date=?,end_date=?,event_time=?,end_time=?,category=?,visibility=?,colour=?,template_id=?,related_item_slug=?,updated_at=? WHERE id=?').bind(
+      title, description, date, endDate || null, time || null, endTime || null, category, visibility, colour, templateId || null, cleanText(body.relatedItemSlug, 100) || null, now, id,
     ).run()
     if (!result.meta.changes) return error('This calendar event could not be found.', 404)
   } else {
-    await env.DB.prepare('INSERT INTO calendar_events (id,title,description,event_date,end_date,event_time,category,visibility,related_item_slug,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(
-      id, title, description, date, endDate || null, time || null, category, visibility, cleanText(body.relatedItemSlug, 100) || null, now, now,
+    await env.DB.prepare('INSERT INTO calendar_events (id,title,description,event_date,end_date,event_time,end_time,category,visibility,colour,template_id,related_item_slug,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(
+      id, title, description, date, endDate || null, time || null, endTime || null, category, visibility, colour, templateId || null, cleanText(body.relatedItemSlug, 100) || null, now, now,
     ).run()
   }
   const row = await env.DB.prepare('SELECT * FROM calendar_events WHERE id=?').bind(id).first<CalendarRow>()
   return json({ event: mapCalendarEvent(row!) }, existingId ? 200 : 201)
+}
+
+async function saveShiftTemplate(request: Request, env: Env, existingId?: string): Promise<Response> {
+  const body = await parseBody(request)
+  if (!body) return error('The shift template is not valid JSON.')
+  const title = cleanText(body.title, 100)
+  const shortLabel = cleanText(body.shortLabel, 8)
+  const description = cleanText(body.description, 500)
+  const startTime = cleanText(body.startTime, 5)
+  const endTime = cleanText(body.endTime, 5)
+  const category = cleanText(body.category, 30)
+  const colour = cleanText(body.colour, 20)
+  const visibility = cleanText(body.visibility, 10)
+  if (!title) return error('Add a shift name.')
+  if ((startTime && !validTime(startTime)) || (endTime && !validTime(endTime))) return error('Choose valid shift times.')
+  if (!CALENDAR_CATEGORIES.includes(category)) return error('Choose a valid shift category.')
+  if (!validColour(colour)) return error('Choose a valid shift colour.')
+  if (!['public', 'private'].includes(visibility)) return error('Choose public or private visibility.')
+  const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
+  const now = new Date().toISOString()
+  if (existingId) {
+    const result = await env.DB.prepare('UPDATE planner_shift_templates SET title=?,short_label=?,description=?,start_time=?,end_time=?,category=?,colour=?,visibility=?,updated_at=? WHERE id=?').bind(title, shortLabel, description, startTime || null, endTime || null, category, colour, visibility, now, id).run()
+    if (!result.meta.changes) return error('This shift template could not be found.', 404)
+  } else {
+    await env.DB.prepare('INSERT INTO planner_shift_templates (id,title,short_label,description,start_time,end_time,category,colour,visibility,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(id, title, shortLabel, description, startTime || null, endTime || null, category, colour, visibility, now, now).run()
+  }
+  const row = await env.DB.prepare('SELECT * FROM planner_shift_templates WHERE id=?').bind(id).first<ShiftTemplateRow>()
+  return json({ template: mapShiftTemplate(row!) }, existingId ? 200 : 201)
 }
 
 async function saveSticky(request: Request, env: Env, existingId?: string): Promise<Response> {
@@ -556,14 +761,20 @@ async function saveStudyCard(request: Request, env: Env, existingId?: string): P
   const question = cleanText(body.question, 500)
   const answer = cleanText(body.answer, 3000)
   const category = cleanText(body.category, 100) || 'General'
-  if (!question || !answer) return error('Add both a question and an answer.')
+  const questionInk = cleanStudyCardInk(body.questionInk)
+  const answerInk = cleanStudyCardInk(body.answerInk)
+  const published = body.published ? 1 : 0
+  if ((!question && !questionInk.length) || (!answer && !answerInk.length)) return error('Add a typed or handwritten front and back.')
+  const questionInkJson = JSON.stringify(questionInk)
+  const answerInkJson = JSON.stringify(answerInk)
+  if (questionInkJson.length + answerInkJson.length > 1_000_000) return error('The handwriting on this card is too large.', 413)
   const id = existingId || cleanText(body.id, 100) || crypto.randomUUID()
   const now = new Date().toISOString()
   if (existingId) {
-    const result = await env.DB.prepare('UPDATE study_cards SET question=?,answer=?,category=?,updated_at=? WHERE id=?').bind(question, answer, category, now, id).run()
+    const result = await env.DB.prepare('UPDATE study_cards SET question=?,answer=?,category=?,question_ink_json=?,answer_ink_json=?,published=?,updated_at=? WHERE id=?').bind(question, answer, category, questionInkJson, answerInkJson, published, now, id).run()
     if (!result.meta.changes) return error('This study card could not be found.', 404)
   } else {
-    await env.DB.prepare('INSERT INTO study_cards (id,question,answer,category,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(id, question, answer, category, now, now).run()
+    await env.DB.prepare('INSERT INTO study_cards (id,question,answer,category,question_ink_json,answer_ink_json,published,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, question, answer, category, questionInkJson, answerInkJson, published, now, now).run()
   }
   const row = await env.DB.prepare('SELECT * FROM study_cards WHERE id=?').bind(id).first<StudyCardRow>()
   return json({ card: mapStudyCard(row!) }, existingId ? 200 : 201)
@@ -716,7 +927,7 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
   let binary = ''
   for (let offset = 0; offset < bytes.length; offset += 32_768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768))
   const repository = `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`
-  const response = await fetch(`https://api.github.com/repos/${repository}/contents/${key}`, {
+  const githubRequest = () => fetch(`https://api.github.com/repos/${repository}/contents/${key}`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
@@ -731,6 +942,19 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
       branch: env.GITHUB_BRANCH || 'main',
     }),
   })
+  let response: Response | undefined
+  let githubFailure: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await githubRequest()
+      if (response.ok || response.status < 500) break
+    } catch (reason) { githubFailure = reason }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+  }
+  if (!response) {
+    console.error('GitHub upload connection failed', githubFailure)
+    return error('The upload server temporarily lost its connection to GitHub. Please try again.', 503)
+  }
   const payload = await response.json().catch(() => ({})) as { message?: string; content?: { download_url?: string } }
   if (!response.ok) {
     console.error('GitHub upload failed', response.status, payload.message)
@@ -738,10 +962,35 @@ async function uploadMedia(request: Request, env: Env): Promise<Response> {
       ? 'GitHub could not authorise this upload. Check the private GITHUB_TOKEN secret.'
       : 'GitHub could not commit this file. Please try again.', 502)
   }
-  const immediateUrl = payload.content?.download_url
-    || `https://raw.githubusercontent.com/${repository}/${env.GITHUB_BRANCH || 'main'}/${key.split('/').map(encodeURIComponent).join('/')}`
+  const immediateUrl = `/api/public/media/${key.split('/').map(encodeURIComponent).join('/')}`
   const asset: MediaAsset = { id: key, name, url: immediateUrl, kind, mimeType: mime, size: bytes.byteLength }
   return json({ asset }, 201)
+}
+
+async function publicUploadedMedia(path: string, env: Env): Promise<Response> {
+  let key = ''
+  try { key = path.split('/').map(decodeURIComponent).join('/') } catch { return error('This uploaded file path is invalid.', 400) }
+  if (!/^public\/uploads\/\d{4}\/\d{2}\/[a-zA-Z0-9._-]+$/.test(key)) return error('This uploaded file path is invalid.', 400)
+  const repository = `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`
+  const response = await fetch(`https://api.github.com/repos/${repository}/contents/${key.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(env.GITHUB_BRANCH || 'main')}`, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github.raw+json',
+      'User-Agent': 'Sasutendo-nya',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  })
+  if (!response.ok || !response.body) return error('This uploaded file is temporarily unavailable.', response.status === 404 ? 404 : 502)
+  const extension = key.toLowerCase().split('.').pop() || ''
+  const knownTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', pdf: 'application/pdf', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', webm: 'video/webm' }
+  return new Response(response.body, {
+    status: 200,
+    headers: {
+      'Content-Type': knownTypes[extension] || response.headers.get('Content-Type') || 'application/octet-stream',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
 }
 
 async function publicWebSearch(request: Request): Promise<Response> {
@@ -774,7 +1023,13 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     return json({ settings: parseJson(row?.value_json || '{}', {}) })
   }
   if (request.method === 'GET' && path === '/api/public/calendar') return publicCalendar(request, env)
+  if (request.method === 'GET' && path === '/api/public/study-cards') return publicStudyCards(env)
   if (request.method === 'GET' && path === '/api/public/whiteboards') return publicWhiteboards(env)
+  if (request.method === 'GET' && path.startsWith('/api/public/media/')) return publicUploadedMedia(path.slice('/api/public/media/'.length), env)
+  if (request.method === 'POST' && path.startsWith('/api/public/whiteboards/') && path.endsWith('/view')) {
+    const id = decodeURIComponent(path.slice('/api/public/whiteboards/'.length, -'/view'.length))
+    return recordWhiteboardView(request, id, env)
+  }
   if (request.method === 'GET' && path === '/api/public/web-search') return publicWebSearch(request)
   if (request.method === 'POST' && path === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && path === '/api/auth/logout') return json({ ok: true }, 200, { 'Set-Cookie': 'nya_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' })
@@ -819,6 +1074,15 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
       if (request.method === 'DELETE') {
         const result = await env.DB.prepare('DELETE FROM calendar_events WHERE id=?').bind(id).run()
         return result.meta.changes ? json({ ok: true }) : error('This calendar event could not be found.', 404)
+      }
+    }
+    if (request.method === 'POST' && path === '/api/admin/shift-templates') return saveShiftTemplate(request, env)
+    if (path.startsWith('/api/admin/shift-templates/')) {
+      const id = decodeURIComponent(path.slice('/api/admin/shift-templates/'.length))
+      if (request.method === 'PUT') return saveShiftTemplate(request, env, id)
+      if (request.method === 'DELETE') {
+        const result = await env.DB.prepare('DELETE FROM planner_shift_templates WHERE id=?').bind(id).run()
+        return result.meta.changes ? json({ ok: true }) : error('This shift template could not be found.', 404)
       }
     }
     if (request.method === 'POST' && path === '/api/admin/sticky-notes') return saveSticky(request, env)
@@ -870,10 +1134,7 @@ async function router(request: Request, env: Env, context: ExecutionContext): Pr
     if (path.startsWith('/api/admin/whiteboards/')) {
       const id = decodeURIComponent(path.slice('/api/admin/whiteboards/'.length))
       if (request.method === 'PUT') return saveWhiteboard(request, env, id)
-      if (request.method === 'DELETE') {
-        const result = await env.DB.prepare('DELETE FROM whiteboards WHERE id=?').bind(id).run()
-        return result.meta.changes ? json({ ok: true }) : error('This whiteboard could not be found.', 404)
-      }
+      if (request.method === 'DELETE') return deleteWhiteboard(env, id)
     }
     if (request.method === 'POST' && path === '/api/admin/upload') return uploadMedia(request, env)
   }

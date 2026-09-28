@@ -5,8 +5,10 @@ function prepareBoard(board: WhiteboardBoard): WhiteboardBoard {
     ...board,
     pages: board.pages.map((page) => ({
       ...page,
-      strokes: page.strokes.map((stroke) => {
+      strokes: page.strokes.flatMap((stroke) => {
+        if (!Array.isArray(stroke.points) || !stroke.points.length) return []
         if (!['pen', 'highlighter', 'eraser'].includes(stroke.tool) || stroke.points.length < 3) return stroke
+
         const kept = [stroke.points[0]]
         for (let index = 1; index < stroke.points.length - 1; index += 1) {
           const point = stroke.points[index]
@@ -14,6 +16,7 @@ function prepareBoard(board: WhiteboardBoard): WhiteboardBoard {
           if (Math.hypot(point.x - previous.x, point.y - previous.y) >= 1.25) kept.push(point)
         }
         kept.push(stroke.points[stroke.points.length - 1])
+
         return {
           ...stroke,
           points: kept.map((point) => ({
@@ -32,7 +35,9 @@ self.onmessage = (event: MessageEvent<{ id: number; board: WhiteboardBoard }>) =
   try {
     self.postMessage({ id, body: JSON.stringify(prepareBoard(board)) })
   } catch (reason) {
-    self.postMessage({ id, error: reason instanceof Error ? reason.message : 'The notebook could not be prepared.' })
+    self.postMessage({
+      id,
+      error: reason instanceof Error ? reason.message : 'The notebook could not be prepared.',
+    })
   }
 }
-
