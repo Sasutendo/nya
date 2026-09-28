@@ -7,6 +7,7 @@ import { Navigate } from 'react-router-dom'
 import { ErrorNotice, LoadingState } from '../../components/Feedback'
 import { adminApi } from '../../lib/api'
 import { newId } from '../../lib/format'
+import { cachedWhiteboardImage, dropWhiteboardImage, keepOnlyWhiteboardImages, optimiseWhiteboardImageUpload, peekWhiteboardImage, reliableWhiteboardMediaUrl } from '../../lib/whiteboard-image-cache'
 import { duplicateWhiteboardStrokes, flattenWhiteboardTree, selectedWhiteboardText, selectionWithEraserMasks, strokeBounds, strokesInsideLasso } from '../../lib/whiteboard-utils'
 import type { WhiteboardBackground, WhiteboardBoard, WhiteboardPageData, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '../../types'
 import { StudioNav, useStudioSession } from './StudioPages'
@@ -15,32 +16,25 @@ const BOARD_WIDTH = 1240
 const BOARD_HEIGHT = 1754
 const COLLAPSED_BOARDS_KEY = 'nya-collapsed-whiteboards-v1'
 const LOCKED_BOARD_IDS_KEY = 'nya-locked-board-ids-v1'
+const LAST_BOARD_KEY = 'nya-last-whiteboard-v1'
+const LAST_PAGE_KEY = 'nya-last-whiteboard-page-v1'
 const colours = ['#000000', '#253a35', '#ffffff', '#bd5d87', '#ed8fba', '#9164a0', '#477f91', '#62a6c0', '#5d8b6b', '#89b989', '#d28155', '#d54f68', '#f0c44f', '#8b6b55', '#68707d']
 const fontFamilies = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
-const imageCache = new Map<string, HTMLImageElement>()
 
-function reliableMediaUrl(url: string): string {
-  try {
-    const parsed = new URL(url, window.location.origin)
-    if (parsed.hostname !== 'raw.githubusercontent.com') return url
-    const parts = parsed.pathname.split('/').filter(Boolean)
-    const publicIndex = parts.indexOf('public')
-    if (publicIndex < 0 || parts[publicIndex + 1] !== 'uploads') return url
-    return `/api/public/media/${parts.slice(publicIndex).map(encodeURIComponent).join('/')}`
-  } catch { return url }
+function historyLimit(): number {
+  if (typeof navigator === 'undefined') return 30
+  const memory = Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory || 0)
+  return memory > 0 && memory <= 4 ? 12 : 30
 }
 
-function cacheImage(url: string): HTMLImageElement {
-  url = reliableMediaUrl(url)
-  let image = imageCache.get(url)
-  if (image) return image
-  if (imageCache.size >= 64) imageCache.delete(imageCache.keys().next().value as string)
-  image = new Image()
-  image.crossOrigin = 'anonymous'
-  image.onerror = () => imageCache.delete(url)
-  image.src = url
-  imageCache.set(url, image)
-  return image
+function lowMemoryTablet(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const memory = Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory || 0)
+  return memory > 0 && memory <= 4
+}
+
+function addHistory(history: WhiteboardStroke[][], strokes: WhiteboardStroke[]): WhiteboardStroke[][] {
+  return [...history.slice(-(historyLimit() - 1)), strokes]
 }
 
 function isAnimatedImage(stroke: WhiteboardStroke): boolean {
@@ -51,9 +45,9 @@ function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke)
   if (!stroke.points.length) return
   context.save()
   if (stroke.tool === 'image' && stroke.imageUrl) {
-    const image = cacheImage(stroke.imageUrl)
+    const image = cachedWhiteboardImage(stroke.imageUrl)
     if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
-      try { context.drawImage(image, stroke.points[0].x, stroke.points[0].y, stroke.width || 420, stroke.height || 300) } catch { imageCache.delete(stroke.imageUrl) }
+      try { context.drawImage(image, stroke.points[0].x, stroke.points[0].y, stroke.width || 420, stroke.height || 300) } catch { dropWhiteboardImage(stroke.imageUrl) }
     }
     if (stroke.text) { context.fillStyle = stroke.colour; context.font = `${stroke.bold ? '700 ' : ''}${stroke.fontSize || 26}px Inter, system-ui, sans-serif`; context.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y + (stroke.height || 300) + 12) } context.restore(); return
   }
@@ -141,8 +135,12 @@ export function WhiteboardPage() {
   const activeStroke = useRef<WhiteboardStroke | null>(null)
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
   const pendingSaves = useRef(new Map<string, WhiteboardBoard>())
+  const pendingLocalStages = useRef(new Map<string, WhiteboardBoard>())
   const saveTimer = useRef<number | undefined>(undefined)
+  const localStageTimer = useRef<number | undefined>(undefined)
+  const localStageQueue = useRef<Promise<void>>(Promise.resolve())
   const dragPaintFrame = useRef<number | undefined>(undefined)
+  const skipNextRepaint = useRef(false)
   const saveVersion = useRef(0)
   const savedRevisions = useRef(new Map<string, number>())
   const [boards, setBoards] = useState<WhiteboardBoard[]>([])
@@ -202,6 +200,15 @@ export function WhiteboardPage() {
   useEffect(() => { boardsRef.current = boards }, [boards])
 
   useEffect(() => {
+    try {
+      if (activeId) localStorage.setItem(LAST_BOARD_KEY, activeId)
+      if (activePageId) localStorage.setItem(LAST_PAGE_KEY, activePageId)
+    } catch { /* Restoring the last open page is optional. */ }
+  }, [activeId, activePageId])
+
+  useEffect(() => { void navigator.storage?.persist?.().catch(() => false) }, [])
+
+  useEffect(() => {
     try { localStorage.setItem(COLLAPSED_BOARDS_KEY, JSON.stringify([...collapsedBoardIds])) } catch { /* Collapsing remains available for this session. */ }
   }, [collapsedBoardIds])
 
@@ -222,7 +229,11 @@ export function WhiteboardPage() {
     adminApi.whiteboards().then(async ({ boards: loaded }) => {
       if (loaded.length) {
         loaded.forEach((candidate) => savedRevisions.current.set(candidate.id, candidate.revision || 1))
-        setBoards(loaded); setActiveId(loaded[0].id); setActivePageId(loaded[0].pages[0]?.id || ''); return
+        let rememberedBoard = ''; let rememberedPage = ''
+        try { rememberedBoard = localStorage.getItem(LAST_BOARD_KEY) || ''; rememberedPage = localStorage.getItem(LAST_PAGE_KEY) || '' } catch { /* Open the first notebook below. */ }
+        const restored = loaded.find((candidate) => candidate.id === rememberedBoard) || loaded[0]
+        const restoredPage = restored.pages.find((candidate) => candidate.id === rememberedPage) || restored.pages[0]
+        setBoards(loaded); setActiveId(restored.id); setActivePageId(restoredPage?.id || ''); return
       }
       const time = new Date().toISOString()
       const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: '#bd5d87', coverStyle: 'blossom', strokes: [] }
@@ -237,7 +248,8 @@ export function WhiteboardPage() {
     if (!canvas || !page) return
     const context = canvas.getContext('2d')
     if (!context) return
-    context.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
+    const pageImages = page.strokes.flatMap((stroke) => stroke.imageUrl ? [stroke.imageUrl] : [])
+    keepOnlyWhiteboardImages(pageImages)
     const repaint = () => {
       context.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
       page.strokes.forEach((stroke) => { try { drawStroke(context, stroke) } catch { /* Skip one damaged mark instead of crashing the notebook. */ } })
@@ -248,8 +260,9 @@ export function WhiteboardPage() {
         context.save(); context.strokeStyle = '#bd5d87'; context.lineWidth = 3; context.setLineDash([12, 8]); context.strokeRect(left - 6, top - 6, right - left + 12, bottom - top + 12); context.restore()
       }
     }
-    repaint()
-    const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? imageCache.get(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
+    if (skipNextRepaint.current) skipNextRepaint.current = false
+    else repaint()
+    const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? peekWhiteboardImage(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
     pendingImages.forEach((image) => image.addEventListener('load', repaint, { once: true }))
     return () => pendingImages.forEach((image) => image.removeEventListener('load', repaint))
   }, [page, selectedIds])
@@ -264,16 +277,31 @@ export function WhiteboardPage() {
     return () => observer.disconnect()
   }, [page?.id, page?.orientation, page?.paperSize, page?.pageScale, zoom, fitPage])
 
+  const flushLocalStages = useCallback((): Promise<void> => {
+    if (localStageTimer.current) window.clearTimeout(localStageTimer.current)
+    localStageTimer.current = undefined
+    const batch = [...pendingLocalStages.current.values()]
+    pendingLocalStages.current.clear()
+    if (!batch.length) return localStageQueue.current
+    localStageQueue.current = localStageQueue.current.catch(() => undefined).then(async () => {
+      for (const candidate of batch) await adminApi.stageWhiteboard(candidate)
+    })
+    return localStageQueue.current
+  }, [])
+
   const saveBoard = useCallback((next: WhiteboardBoard) => {
     const version = ++saveVersion.current
     pendingSaves.current.set(next.id, next)
+    pendingLocalStages.current.set(next.id, next)
     setSaveState('saving')
-    void adminApi.stageWhiteboard(next).catch(() => undefined)
+    if (localStageTimer.current) window.clearTimeout(localStageTimer.current)
+    localStageTimer.current = window.setTimeout(() => { void flushLocalStages().catch(() => undefined) }, lowMemoryTablet() ? 420 : 180)
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
       const batch = [...pendingSaves.current.values()]
       pendingSaves.current.clear()
       saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+        await flushLocalStages().catch(() => undefined)
         let queuedOnDevice = false
         for (const candidate of batch) {
           const revision = savedRevisions.current.get(candidate.id) || candidate.revision || 1
@@ -294,15 +322,17 @@ export function WhiteboardPage() {
         if (version === saveVersion.current) setSaveState('unsaved')
         setError(reason instanceof Error ? reason.message : 'The board could not be saved.')
       })
-    }, 550)
+    }, lowMemoryTablet() ? 2_400 : 1_400)
     return saveQueue.current
-  }, [])
+  }, [flushLocalStages])
 
   useEffect(() => {
-    const preserveLatestDrafts = () => pendingSaves.current.forEach((candidate) => { void adminApi.stageWhiteboard(candidate) })
+    const preserveLatestDrafts = () => { pendingSaves.current.forEach((candidate) => pendingLocalStages.current.set(candidate.id, candidate)); void flushLocalStages() }
+    const preserveWhenHidden = () => { if (document.visibilityState === 'hidden') preserveLatestDrafts() }
     window.addEventListener('pagehide', preserveLatestDrafts)
-    return () => { window.removeEventListener('pagehide', preserveLatestDrafts); if (dragPaintFrame.current) window.cancelAnimationFrame(dragPaintFrame.current) }
-  }, [])
+    document.addEventListener('visibilitychange', preserveWhenHidden)
+    return () => { window.removeEventListener('pagehide', preserveLatestDrafts); document.removeEventListener('visibilitychange', preserveWhenHidden); preserveLatestDrafts(); if (dragPaintFrame.current) window.cancelAnimationFrame(dragPaintFrame.current) }
+  }, [flushLocalStages])
 
   function pointFromEvent(event: React.PointerEvent<HTMLCanvasElement>): WhiteboardPoint {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -354,7 +384,7 @@ export function WhiteboardPage() {
         event.currentTarget.setPointerCapture(event.pointerId)
         const selectedSet = new Set(ids)
         drag.current = { ids, start: point, originals: new Map(page.strokes.filter((stroke) => selectedSet.has(stroke.id)).map((stroke) => [stroke.id, stroke.points.map((item) => ({ ...item }))])), latestStrokes: page.strokes }
-        setPast((history) => [...history.slice(-49), page.strokes]); setFuture([])
+        setPast((history) => addHistory(history, page.strokes)); setFuture([])
       }
       return
     }
@@ -435,20 +465,21 @@ export function WhiteboardPage() {
     if (!stroke || !board || !page) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     activeStroke.current = null
-    setPast((history) => [...history.slice(-49), page.strokes]); setFuture([])
+    setPast((history) => addHistory(history, page.strokes)); setFuture([])
     const updatedAt = new Date().toISOString()
     const next = { ...board, pages: board.pages.map((candidate) => candidate.id === page.id ? { ...candidate, strokes: [...candidate.strokes, stroke], updatedAt } : candidate), updatedAt }
+    if (['pen', 'highlighter', 'eraser'].includes(stroke.tool)) skipNextRepaint.current = true
     setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
   }
 
   function commitEditor() {
     if (!editor || !page || !editor.value.trim()) { setEditor(null); return }
     const stroke: WhiteboardStroke = { id: newId(editor.kind), tool: editor.kind, colour, size: fontSize, fontSize, fontFamily, underline, bold, italic, text: editor.value.trim(), points: [editor.point], updatedAt: new Date().toISOString(), ...(editor.kind === 'note' ? { width: 320, height: 230, noteColour: '#fff0a9' } : {}) }
-    setPast((history) => [...history.slice(-49), page.strokes]); setFuture([]); updatePage({ strokes: [...page.strokes, stroke] }); setEditor(null); setSelectedIds([stroke.id]); setTool('select')
+    setPast((history) => addHistory(history, page.strokes)); setFuture([]); updatePage({ strokes: [...page.strokes, stroke] }); setEditor(null); setSelectedIds([stroke.id]); setTool('select')
   }
 
   function updateSelected(patch: Partial<WhiteboardStroke>) { if (!page || !selectedIds.length) return; const updatedAt = new Date().toISOString(); const selectedSet = new Set(selectedIds); updatePage({ strokes: page.strokes.map((stroke) => selectedSet.has(stroke.id) ? { ...stroke, ...patch, updatedAt } : stroke) }) }
-  function deleteStrokeIds(ids: string[]) { if (!page || !ids.length) return; const selectedSet = new Set(ids); setPast((history) => [...history.slice(-49), page.strokes]); setFuture([]); updatePage({ strokes: page.strokes.filter((stroke) => !selectedSet.has(stroke.id)), deletedStrokeIds: [...new Set([...(page.deletedStrokeIds || []), ...ids])] }); setSelectedIds((current) => current.filter((id) => !selectedSet.has(id))) }
+  function deleteStrokeIds(ids: string[]) { if (!page || !ids.length) return; const selectedSet = new Set(ids); setPast((history) => addHistory(history, page.strokes)); setFuture([]); updatePage({ strokes: page.strokes.filter((stroke) => !selectedSet.has(stroke.id)), deletedStrokeIds: [...new Set([...(page.deletedStrokeIds || []), ...ids])] }); setSelectedIds((current) => current.filter((id) => !selectedSet.has(id))) }
   function deleteSelected() { deleteStrokeIds(selectedIds) }
   async function copySelection(cut = false) {
     if (!page || !selectedIds.length) { setError('Select handwriting, text, or other objects first.'); return }
@@ -479,7 +510,7 @@ export function WhiteboardPage() {
     const dy = target ? Math.max(0, Math.min(BOARD_HEIGHT - (bottom - top), target.y - top)) : bottom + 40 > BOARD_HEIGHT ? 20 - top : 40
     const updatedAt = new Date().toISOString()
     const copies = duplicateWhiteboardStrokes(source, dx, dy, (stroke) => newId(stroke.tool), updatedAt)
-    setPast((history) => [...history.slice(-49), page.strokes]); setFuture([])
+    setPast((history) => addHistory(history, page.strokes)); setFuture([])
     updatePage({ strokes: [...page.strokes, ...copies] }); setSelectedIds(copies.map((stroke) => stroke.id)); setTool('select'); setClipboardStrokes(copies); setError('')
   }
   function linkSelected() { const selected = page?.strokes.find((item) => item.id === selectedIds[0]); if (!selected) return; const url = window.prompt('Paste the link for this text or object:', selected.url || ''); if (url !== null) updateSelected({ url: url.trim() }) }
@@ -520,13 +551,13 @@ export function WhiteboardPage() {
     const url = window.prompt('Paste a website, presentation, or notebook link:')?.trim(); if (!url) return
     const text = window.prompt('What should the link card say?', 'Open resource')?.trim() || 'Open resource'
     const stroke: WhiteboardStroke = { id: newId('link'), tool: 'link', colour, size: 30, fontSize: 30, fontFamily, underline: true, text: `↗ ${text}`, url, width: 390, height: 120, points: [{ x: 100, y: 100, pressure: .5 }], updatedAt: new Date().toISOString() }
-    setPast((history) => [...history.slice(-49), page.strokes]); updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select')
+    setPast((history) => addHistory(history, page.strokes)); updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select')
   }
 
   async function importImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; if (!file || !page) return
     setUploadingImage(true)
-    try { const { asset } = await adminApi.upload(file); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, width: 480, height: 340, points: [{ x: 100, y: 100, pressure: .5 }], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false); event.target.value = '' }
+    try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, width: 480, height: 340, points: [{ x: 100, y: 100, pressure: .5 }], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false); event.target.value = '' }
   }
 
   async function importCoverArt(event: React.ChangeEvent<HTMLInputElement>) {
@@ -535,7 +566,7 @@ export function WhiteboardPage() {
     if (!file || !board) return
     if (!file.type.startsWith('image/')) { setError('Choose an image or animated GIF for the notebook cover.'); return }
     setUploadingCover(true)
-    try { const { asset } = await adminApi.upload(file); updateBoard({ coverImage: asset.url }); setError('') }
+    try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); updateBoard({ coverImage: asset.url }); setError('') }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'The cover art could not be uploaded.') }
     finally { setUploadingCover(false) }
   }
@@ -544,7 +575,7 @@ export function WhiteboardPage() {
     event.preventDefault(); if (!page || !board) return
     const rect = paperRef.current?.getBoundingClientRect(); const point = rect ? { x: Math.max(0, Math.min(BOARD_WIDTH - 80, (event.clientX - rect.left) * BOARD_WIDTH / rect.width)), y: Math.max(0, Math.min(BOARD_HEIGHT - 80, (event.clientY - rect.top) * BOARD_HEIGHT / rect.height)), pressure: .5 } : { x: 120, y: 120, pressure: .5 }
     const file = [...event.dataTransfer.files].find((item) => item.type.startsWith('image/'))
-    if (file) { setUploadingImage(true); try { const { asset } = await adminApi.upload(file); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, text: file.name.replace(/\.[^.]+$/, ''), width: 480, height: 340, points: [point], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false) }; return }
+    if (file) { setUploadingImage(true); try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, text: file.name.replace(/\.[^.]+$/, ''), width: 480, height: 340, points: [point], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false) }; return }
     const raw = event.dataTransfer.getData('application/x-nya-page') || event.dataTransfer.getData('application/x-nya-board'); if (!raw) return
     try { const reference = JSON.parse(raw) as { boardId: string; pageId?: string; title: string }; const url = `/notebooks?board=${encodeURIComponent(reference.boardId)}${reference.pageId ? `&page=${encodeURIComponent(reference.pageId)}` : ''}`; const stroke: WhiteboardStroke = { id: newId('link'), tool: 'link', colour, size: 28, fontSize: 28, fontFamily, bold: true, underline: false, text: `↗ ${reference.title}`, url, width: 430, height: 120, points: [point], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch { setError('That notebook reference could not be added.') }
   }
@@ -556,7 +587,7 @@ export function WhiteboardPage() {
     setPast(nextPast); setFuture(nextFuture); setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
   }
 
-  function undo() { if (page && past.length) changeStrokes(past[past.length - 1], past.slice(0, -1), [page.strokes, ...future].slice(0, 50)) }
+  function undo() { if (page && past.length) changeStrokes(past[past.length - 1], past.slice(0, -1), [page.strokes, ...future].slice(0, historyLimit())) }
   function redo() { if (page && future.length) changeStrokes(future[0], [...past, page.strokes].slice(-50), future.slice(1)) }
 
   async function addBoard(parentId?: string) {
@@ -633,13 +664,14 @@ export function WhiteboardPage() {
       if (file.type.startsWith('image/')) {
         setUploadingImage(true)
         const importedAt = new Date().toISOString()
-        const previewUrl = URL.createObjectURL(file)
+        const upload = await optimiseWhiteboardImageUpload(file)
+        const previewUrl = URL.createObjectURL(upload)
         imported = { id: newId('page'), name: file.name.replace(/\.[^.]+$/, '') || 'Imported page', background: 'plain', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: board.pages[0]?.accentColour || '#bd5d87', strokes: [{ id: newId('image'), tool: 'image', colour: '#000000', size: 1, points: [{ x: 40, y: 40, pressure: .5 }], imageUrl: previewUrl, width: 1160, height: 1640, updatedAt: importedAt }], updatedAt: importedAt }
         const optimistic = { ...board, pages: [...board.pages, imported], updatedAt: new Date().toISOString() }
         boardsRef.current = boardsRef.current.map((candidate) => candidate.id === board.id ? optimistic : candidate)
         setBoards(boardsRef.current); setActivePageId(imported.id); setPast([]); setFuture([]); setError('')
-        const { asset } = await adminApi.upload(file)
-        imageCache.delete(previewUrl); URL.revokeObjectURL(previewUrl)
+        const { asset } = await adminApi.upload(upload)
+        dropWhiteboardImage(previewUrl); URL.revokeObjectURL(previewUrl)
         const latest = boardsRef.current.find((candidate) => candidate.id === board.id) || optimistic
         const next = { ...latest, pages: latest.pages.map((candidate) => candidate.id === imported.id ? { ...candidate, strokes: candidate.strokes.map((stroke) => stroke.imageUrl === previewUrl ? { ...stroke, imageUrl: asset.url } : stroke) } : candidate), updatedAt: new Date().toISOString() }
         boardsRef.current = boardsRef.current.map((candidate) => candidate.id === board.id ? next : candidate)
@@ -700,7 +732,7 @@ export function WhiteboardPage() {
           <label className="stylus-toggle"><input type="checkbox" checked={stylusOnly} onChange={(event) => setStylusOnly(event.target.checked)} /><MousePointer2 size={15} />Stylus only</label>
           <div className="zoom-control"><button type="button" className={fitPage ? 'is-active' : ''} onClick={() => setFitPage((value) => !value)} title="Fit the complete page"><Maximize2 size={16} /></button><button type="button" onClick={() => { setFitPage(false); setZoom((value) => Math.max(25, value - 1)) }} title="Zoom out 1%"><ZoomOut size={16} /></button><input type="range" min="25" max="200" step="1" value={zoom} onChange={(event) => { setFitPage(false); setZoom(Number(event.target.value)) }} aria-label="Page zoom slider" /><input className="precise-number" type="number" min="25" max="200" step="1" value={zoom} onChange={(event) => { setFitPage(false); setZoom(Math.max(25, Math.min(200, Number(event.target.value) || 25))) }} aria-label="Exact page zoom" /><span>%</span><button type="button" onClick={() => { setFitPage(false); setZoom((value) => Math.min(200, value + 1)) }} title="Zoom in 1%"><ZoomIn size={16} /></button></div>
         </div>
-        <div ref={scrollRef} className={`whiteboard-scroll ${fitPage ? 'is-fit' : ''}`} onDragOver={(event) => event.preventDefault()} onDrop={dropOnPage} onTouchStart={(event) => { if (tool === 'select' && event.touches.length === 1) swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => { if (!swipeStart.current || !event.changedTouches[0]) return; const dx = event.changedTouches[0].clientX - swipeStart.current.x; const dy = event.changedTouches[0].clientY - swipeStart.current.y; if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.4) turnPage(dx < 0 ? 1 : -1); swipeStart.current = null }}><div ref={paperRef} className={`whiteboard-paper size-${page.paperSize || 'a4'} orientation-${page.orientation || 'portrait'} background-${page.background}`} style={{ width: `${displayWidth}px`, height: `${displayHeight}px`, '--ruling-x': `${(page.rulingSize || 20) / BOARD_WIDTH * 100}%`, '--ruling-y': `${(page.rulingSize || 20) / BOARD_HEIGHT * 100}%` } as React.CSSProperties}><canvas ref={canvasRef} width={BOARD_WIDTH} height={BOARD_HEIGHT} onPointerDown={beginStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onPointerEnter={(event) => updateBrushCursor(event)} onPointerLeave={(event) => updateBrushCursor(event, false)} />{page.strokes.filter((stroke) => isAnimatedImage(stroke) && stroke.points[0]).map((stroke) => <img key={`live-${stroke.id}`} className="whiteboard-live-gif" src={reliableMediaUrl(stroke.imageUrl || '')} alt="" style={{ left: `${stroke.points[0].x / BOARD_WIDTH * 100}%`, top: `${stroke.points[0].y / BOARD_HEIGHT * 100}%`, width: `${(stroke.width || 420) / BOARD_WIDTH * 100}%`, height: `${(stroke.height || 300) / BOARD_HEIGHT * 100}%` }} />)}<canvas ref={lassoCanvasRef} className="whiteboard-lasso-layer" width={BOARD_WIDTH} height={BOARD_HEIGHT} aria-hidden="true" /><div ref={brushCursorRef} className={`whiteboard-brush-cursor is-${tool}`} aria-hidden="true" />{editor && <><textarea autoFocus className={`whiteboard-inline-editor ${editor.kind === 'note' ? 'is-note' : ''}`} style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%`, width: `${(editor.kind === 'note' ? 320 : Math.min(600, BOARD_WIDTH - editor.point.x - 20)) * paperScale.y}px`, minHeight: `${(editor.kind === 'note' ? 230 : Math.max(70, fontSize * 2.7)) * paperScale.y}px`, padding: editor.kind === 'note' ? `${24 * paperScale.y}px` : '0', fontFamily: fontFamilies[fontFamily], fontSize: `${fontSize * paperScale.y}px`, lineHeight: 1.25, transform: `scaleX(${paperScale.x / Math.max(.001, paperScale.y)})`, transformOrigin: 'top left' }} value={editor.value} onChange={(event) => setEditor({ ...editor, value: event.target.value })} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commitEditor(); if (event.key === 'Escape') setEditor(null) }} placeholder={editor.kind === 'note' ? 'Write a little note…' : 'Type directly on the page…'} /><div className="whiteboard-inline-actions" style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%` }}><button type="button" onClick={commitEditor}><Check size={14} />Place</button><button type="button" onClick={() => setEditor(null)}><X size={14} /></button></div></>}</div></div>
+        <div ref={scrollRef} className={`whiteboard-scroll ${fitPage ? 'is-fit' : ''}`} onDragOver={(event) => event.preventDefault()} onDrop={dropOnPage} onTouchStart={(event) => { if (tool === 'select' && event.touches.length === 1) swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => { if (!swipeStart.current || !event.changedTouches[0]) return; const dx = event.changedTouches[0].clientX - swipeStart.current.x; const dy = event.changedTouches[0].clientY - swipeStart.current.y; if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.4) turnPage(dx < 0 ? 1 : -1); swipeStart.current = null }}><div ref={paperRef} className={`whiteboard-paper size-${page.paperSize || 'a4'} orientation-${page.orientation || 'portrait'} background-${page.background}`} style={{ width: `${displayWidth}px`, height: `${displayHeight}px`, '--ruling-x': `${(page.rulingSize || 20) / BOARD_WIDTH * 100}%`, '--ruling-y': `${(page.rulingSize || 20) / BOARD_HEIGHT * 100}%` } as React.CSSProperties}><canvas ref={canvasRef} width={BOARD_WIDTH} height={BOARD_HEIGHT} onPointerDown={beginStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onPointerEnter={(event) => updateBrushCursor(event)} onPointerLeave={(event) => updateBrushCursor(event, false)} />{page.strokes.filter((stroke) => isAnimatedImage(stroke) && stroke.points[0]).map((stroke) => <img key={`live-${stroke.id}`} className="whiteboard-live-gif" src={reliableWhiteboardMediaUrl(stroke.imageUrl || '')} alt="" style={{ left: `${stroke.points[0].x / BOARD_WIDTH * 100}%`, top: `${stroke.points[0].y / BOARD_HEIGHT * 100}%`, width: `${(stroke.width || 420) / BOARD_WIDTH * 100}%`, height: `${(stroke.height || 300) / BOARD_HEIGHT * 100}%` }} />)}<canvas ref={lassoCanvasRef} className="whiteboard-lasso-layer" width={tool === 'lasso' ? BOARD_WIDTH : 1} height={tool === 'lasso' ? BOARD_HEIGHT : 1} aria-hidden="true" /><div ref={brushCursorRef} className={`whiteboard-brush-cursor is-${tool}`} aria-hidden="true" />{editor && <><textarea autoFocus className={`whiteboard-inline-editor ${editor.kind === 'note' ? 'is-note' : ''}`} style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%`, width: `${(editor.kind === 'note' ? 320 : Math.min(600, BOARD_WIDTH - editor.point.x - 20)) * paperScale.y}px`, minHeight: `${(editor.kind === 'note' ? 230 : Math.max(70, fontSize * 2.7)) * paperScale.y}px`, padding: editor.kind === 'note' ? `${24 * paperScale.y}px` : '0', fontFamily: fontFamilies[fontFamily], fontSize: `${fontSize * paperScale.y}px`, lineHeight: 1.25, transform: `scaleX(${paperScale.x / Math.max(.001, paperScale.y)})`, transformOrigin: 'top left' }} value={editor.value} onChange={(event) => setEditor({ ...editor, value: event.target.value })} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commitEditor(); if (event.key === 'Escape') setEditor(null) }} placeholder={editor.kind === 'note' ? 'Write a little note…' : 'Type directly on the page…'} /><div className="whiteboard-inline-actions" style={{ left: `${editor.point.x / BOARD_WIDTH * 100}%`, top: `${editor.point.y / BOARD_HEIGHT * 100}%` }}><button type="button" onClick={commitEditor}><Check size={14} />Place</button><button type="button" onClick={() => setEditor(null)}><X size={14} /></button></div></>}</div></div>
         <p className="whiteboard-tip"><RotateCcw size={14} />With <strong>Stylus only</strong>, draw with the pen, drag the paper in any direction with one finger, and pinch with two fingers to zoom.</p>
       </section>}
       {confirmDelete && <div className="whiteboard-dialog-backdrop" role="presentation" onMouseDown={() => setConfirmDelete(null)}><section className="whiteboard-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" onMouseDown={(event) => event.stopPropagation()}><h2 id="delete-dialog-title">Delete {confirmDelete === 'board' ? 'notebook' : 'page'}?</h2><p>{confirmDelete === 'board' ? `“${board?.title}” and all its pages will be permanently removed.` : `“${page?.name}” will be permanently removed.`}</p><div><button type="button" onClick={() => setConfirmDelete(null)}>Keep it</button><button type="button" className="danger" onClick={() => { const action = confirmDelete; setConfirmDelete(null); if (action === 'board') void deleteBoard(); else deletePage() }}><Trash2 size={15} />Delete</button></div></section></div>}

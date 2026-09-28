@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { getPublicWhiteboards, recordWhiteboardView } from '../lib/api'
 import { useLanguage } from '../lib/i18n'
+import { cachedWhiteboardImage, dropWhiteboardImage, keepOnlyWhiteboardImages, peekWhiteboardImage, reliableWhiteboardMediaUrl } from '../lib/whiteboard-image-cache'
 import { flattenWhiteboardTree } from '../lib/whiteboard-utils'
 import type { WhiteboardBoard, WhiteboardPageData, WhiteboardStroke } from '../types'
 
@@ -11,27 +12,6 @@ const WIDTH = 1240
 const HEIGHT = 1754
 const COLLAPSED_BOARDS_KEY = 'nya-collapsed-whiteboards-v1'
 const fontFamilies = { handwritten: '"Segoe Print", "Comic Sans MS", cursive', sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, serif', mono: 'ui-monospace, monospace' }
-const imageCache = new Map<string, HTMLImageElement>()
-
-function reliableMediaUrl(url: string): string {
-  try {
-    const parsed = new URL(url, window.location.origin)
-    if (parsed.hostname !== 'raw.githubusercontent.com') return url
-    const parts = parsed.pathname.split('/').filter(Boolean)
-    const publicIndex = parts.indexOf('public')
-    if (publicIndex < 0 || parts[publicIndex + 1] !== 'uploads') return url
-    return `/api/public/media/${parts.slice(publicIndex).map(encodeURIComponent).join('/')}`
-  } catch { return url }
-}
-
-function cacheImage(url: string): HTMLImageElement {
-  url = reliableMediaUrl(url)
-  let image = imageCache.get(url)
-  if (image) return image
-  if (imageCache.size >= 64) imageCache.delete(imageCache.keys().next().value as string)
-  image = new Image(); image.crossOrigin = 'anonymous'; image.onerror = () => imageCache.delete(url); image.src = url; imageCache.set(url, image)
-  return image
-}
 
 function isAnimatedImage(stroke: WhiteboardStroke): boolean {
   return stroke.tool === 'image' && Boolean(stroke.imageUrl?.toLowerCase().includes('.gif'))
@@ -40,7 +20,7 @@ function isAnimatedImage(stroke: WhiteboardStroke): boolean {
 function drawStroke(context: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
   if (!stroke.points.length) return
   context.save()
-  if (stroke.tool === 'image' && stroke.imageUrl) { const image = cacheImage(stroke.imageUrl); if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) { try { context.drawImage(image, stroke.points[0].x, stroke.points[0].y, stroke.width || 420, stroke.height || 300) } catch { imageCache.delete(stroke.imageUrl) } } if (stroke.text) { context.fillStyle = stroke.colour; context.font = `${stroke.bold ? '700 ' : ''}${stroke.fontSize || 26}px Inter, system-ui, sans-serif`; context.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y + (stroke.height || 300) + 12) } context.restore(); return }
+  if (stroke.tool === 'image' && stroke.imageUrl) { const image = cachedWhiteboardImage(stroke.imageUrl); if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) { try { context.drawImage(image, stroke.points[0].x, stroke.points[0].y, stroke.width || 420, stroke.height || 300) } catch { dropWhiteboardImage(stroke.imageUrl) } } if (stroke.text) { context.fillStyle = stroke.colour; context.font = `${stroke.bold ? '700 ' : ''}${stroke.fontSize || 26}px Inter, system-ui, sans-serif`; context.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y + (stroke.height || 300) + 12) } context.restore(); return }
   if (stroke.tool === 'text' || stroke.tool === 'note' || stroke.tool === 'link') {
     if (stroke.tool === 'note' || stroke.tool === 'link') { context.fillStyle = stroke.tool === 'link' ? '#f7e7f0' : stroke.noteColour || '#fff0a9'; context.shadowColor = 'rgba(72,45,58,.18)'; context.shadowBlur = 18; context.fillRect(stroke.points[0].x, stroke.points[0].y, stroke.width || 300, stroke.height || 220); context.shadowBlur = 0 }
     context.fillStyle = stroke.colour; context.textBaseline = 'top'; context.font = `${stroke.italic ? 'italic ' : ''}${stroke.bold ? '700 ' : ''}${stroke.fontSize || 36}px ${fontFamilies[stroke.fontFamily || 'handwritten']}`
@@ -79,7 +59,7 @@ function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, (c
 async function ensurePageImages(page: WhiteboardPageData): Promise<void> {
   const urls = [...new Set(page.strokes.flatMap((stroke) => stroke.imageUrl ? [stroke.imageUrl] : []))]
   await Promise.all(urls.map((url) => new Promise<void>((resolve) => {
-    const image = cacheImage(url)
+    const image = cachedWhiteboardImage(url)
     if (image.complete) { resolve(); return }
     image.addEventListener('load', () => resolve(), { once: true })
     image.addEventListener('error', () => resolve(), { once: true })
@@ -133,8 +113,9 @@ export function PublicNotebooksPage() {
   }, [board?.id])
   useEffect(() => {
     const context = canvasRef.current?.getContext('2d'); if (!context || !page) return
+    keepOnlyWhiteboardImages(page.strokes.flatMap((stroke) => stroke.imageUrl ? [stroke.imageUrl] : []))
     const repaint = () => { context.clearRect(0, 0, WIDTH, HEIGHT); page.strokes.forEach((stroke) => { try { drawStroke(context, stroke) } catch { /* Keep the rest of the public page readable. */ } }) }; repaint()
-    const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? imageCache.get(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
+    const pendingImages = page.strokes.map((stroke) => stroke.imageUrl ? peekWhiteboardImage(stroke.imageUrl) : undefined).filter((image): image is HTMLImageElement => Boolean(image && !image.complete))
     pendingImages.forEach((image) => image.addEventListener('load', repaint, { once: true }))
     return () => pendingImages.forEach((image) => image.removeEventListener('load', repaint))
   }, [page])
@@ -176,7 +157,7 @@ export function PublicNotebooksPage() {
       {board && page && <section className="public-notebook-viewer">
         <div className="public-notebook-heading"><div><small><Eye size={13} />{text('Read only', 'Schreibgeschützt')} · {board.viewCount || 0} {text('views', 'Aufrufe')}</small><h2>{board.title}</h2><p>{page.name}</p></div><div className="public-download-actions"><span>{pageIndex + 1} / {board.pages.length}</span><button type="button" onClick={() => { void downloadPage() }} disabled={Boolean(downloading)}>{downloading === 'page' ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}{text('Page', 'Seite')}</button><label className="include-subboards"><input type="checkbox" checked={includeSubboards} onChange={(event) => setIncludeSubboards(event.target.checked)} />{text('Include subboards', 'Unterboards einschließen')}</label><button type="button" onClick={() => { void downloadBoard() }} disabled={Boolean(downloading)}>{downloading === 'board' ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}{text('Whole board', 'Ganzes Heft')}</button></div></div>
         {downloadError && <p className="public-download-error" role="alert">{downloadError}</p>}
-        <div className="public-a4-stage" onTouchStart={(event) => { if (event.touches.length === 1) swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => { if (!swipeStart.current || !event.changedTouches[0]) return; const dx = event.changedTouches[0].clientX - swipeStart.current.x; if (Math.abs(dx) > 70) movePage(dx < 0 ? 1 : -1); swipeStart.current = null }}><div className={`public-a4-paper orientation-${page.orientation || 'portrait'} background-${page.background}`} style={{ '--ruling-x': `${(page.rulingSize || 20) / WIDTH * 100}%`, '--ruling-y': `${(page.rulingSize || 20) / HEIGHT * 100}%` } as React.CSSProperties}><canvas ref={canvasRef} width={WIDTH} height={HEIGHT} aria-label={`${board.title}, ${page.name}`} />{page.strokes.filter((stroke) => isAnimatedImage(stroke) && stroke.points[0]).map((stroke) => <img key={`live-${stroke.id}`} className="whiteboard-live-gif" src={reliableMediaUrl(stroke.imageUrl || '')} alt="" style={{ left: `${stroke.points[0].x / WIDTH * 100}%`, top: `${stroke.points[0].y / HEIGHT * 100}%`, width: `${(stroke.width || 420) / WIDTH * 100}%`, height: `${(stroke.height || 300) / HEIGHT * 100}%` }} />)}{page.strokes.filter((stroke) => stroke.url && stroke.points[0]).map((stroke) => <a key={stroke.id} className="public-board-link" href={stroke.url} target={stroke.url?.startsWith('http') ? '_blank' : undefined} rel="noreferrer" style={{ left: `${stroke.points[0].x / WIDTH * 100}%`, top: `${stroke.points[0].y / HEIGHT * 100}%`, width: `${(stroke.width || Math.max(150, (stroke.text?.length || 8) * (stroke.fontSize || 30) * .55)) / WIDTH * 100}%`, height: `${(stroke.height || (stroke.fontSize || 30) * 1.4) / HEIGHT * 100}%` }} aria-label={stroke.text || 'Open linked resource'} />)}</div></div>
+        <div className="public-a4-stage" onTouchStart={(event) => { if (event.touches.length === 1) swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={(event) => { if (!swipeStart.current || !event.changedTouches[0]) return; const dx = event.changedTouches[0].clientX - swipeStart.current.x; if (Math.abs(dx) > 70) movePage(dx < 0 ? 1 : -1); swipeStart.current = null }}><div className={`public-a4-paper orientation-${page.orientation || 'portrait'} background-${page.background}`} style={{ '--ruling-x': `${(page.rulingSize || 20) / WIDTH * 100}%`, '--ruling-y': `${(page.rulingSize || 20) / HEIGHT * 100}%` } as React.CSSProperties}><canvas ref={canvasRef} width={WIDTH} height={HEIGHT} aria-label={`${board.title}, ${page.name}`} />{page.strokes.filter((stroke) => isAnimatedImage(stroke) && stroke.points[0]).map((stroke) => <img key={`live-${stroke.id}`} className="whiteboard-live-gif" src={reliableWhiteboardMediaUrl(stroke.imageUrl || '')} alt="" style={{ left: `${stroke.points[0].x / WIDTH * 100}%`, top: `${stroke.points[0].y / HEIGHT * 100}%`, width: `${(stroke.width || 420) / WIDTH * 100}%`, height: `${(stroke.height || 300) / HEIGHT * 100}%` }} />)}{page.strokes.filter((stroke) => stroke.url && stroke.points[0]).map((stroke) => <a key={stroke.id} className="public-board-link" href={stroke.url} target={stroke.url?.startsWith('http') ? '_blank' : undefined} rel="noreferrer" style={{ left: `${stroke.points[0].x / WIDTH * 100}%`, top: `${stroke.points[0].y / HEIGHT * 100}%`, width: `${(stroke.width || Math.max(150, (stroke.text?.length || 8) * (stroke.fontSize || 30) * .55)) / WIDTH * 100}%`, height: `${(stroke.height || (stroke.fontSize || 30) * 1.4) / HEIGHT * 100}%` }} aria-label={stroke.text || 'Open linked resource'} />)}</div></div>
         <div className="public-page-controls"><button type="button" onClick={() => movePage(-1)} disabled={board.pages.length < 2}><ChevronLeft size={17} />{text('Previous', 'Zurück')}</button><div>{board.pages.map((candidate, index) => <button key={candidate.id} type="button" className={index === pageIndex ? 'is-active' : ''} onClick={() => setPageIndex(index)} aria-label={`${text('Open', 'Öffne')} ${candidate.name}`}>{index + 1}</button>)}</div><button type="button" onClick={() => movePage(1)} disabled={board.pages.length < 2}>{text('Next', 'Weiter')}<ChevronRight size={17} /></button></div>
       </section>}
     </div>}
