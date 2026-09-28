@@ -218,7 +218,7 @@ export function WhiteboardPage() {
 
   useEffect(() => {
     const savedOffline = () => setSaveState('offline')
-    const sync = () => { setSaveState('saving'); adminApi.syncWhiteboards().then(({ boards: synced, queued }) => { synced.forEach((candidate) => savedRevisions.current.set(candidate.id, candidate.revision || 1)); setBoards(synced); setActiveId((current) => synced.some((candidate) => candidate.id === current) ? current : synced[0]?.id || ''); setActivePageId((current) => synced.some((candidate) => candidate.pages.some((item) => item.id === current)) ? current : synced[0]?.pages[0]?.id || ''); setSaveState(queued ? 'offline' : 'saved'); setError('') }).catch((reason) => { setSaveState('unsaved'); setError(reason instanceof Error ? reason.message : 'Offline pages could not sync yet.') }) }
+    const sync = () => { setSaveState('saving'); adminApi.syncWhiteboards().then(({ boards: synced, queued }) => { synced.forEach((candidate) => savedRevisions.current.set(candidate.id, candidate.revision || 1)); boardsRef.current = synced; setBoards(synced); setActiveId((current) => synced.some((candidate) => candidate.id === current) ? current : synced[0]?.id || ''); setActivePageId((current) => synced.some((candidate) => candidate.pages.some((item) => item.id === current)) ? current : synced[0]?.pages[0]?.id || ''); setSaveState(queued ? 'offline' : 'saved'); setError('') }).catch((reason) => { setSaveState('unsaved'); setError(reason instanceof Error ? reason.message : 'Offline pages could not sync yet.') }) }
     window.addEventListener('nya-offline-save', savedOffline)
     window.addEventListener('online', sync)
     return () => { window.removeEventListener('nya-offline-save', savedOffline); window.removeEventListener('online', sync) }
@@ -233,13 +233,13 @@ export function WhiteboardPage() {
         try { rememberedBoard = localStorage.getItem(LAST_BOARD_KEY) || ''; rememberedPage = localStorage.getItem(LAST_PAGE_KEY) || '' } catch { /* Open the first notebook below. */ }
         const restored = loaded.find((candidate) => candidate.id === rememberedBoard) || loaded[0]
         const restoredPage = restored.pages.find((candidate) => candidate.id === rememberedPage) || restored.pages[0]
-        setBoards(loaded); setActiveId(restored.id); setActivePageId(restoredPage?.id || ''); return
+        boardsRef.current = loaded; setBoards(loaded); setActiveId(restored.id); setActivePageId(restoredPage?.id || ''); return
       }
       const time = new Date().toISOString()
       const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: '#bd5d87', coverStyle: 'blossom', strokes: [] }
       const starter: WhiteboardBoard = { id: newId('board'), title: 'My first study notebook', pages: [firstPage], published: false, createdAt: time, updatedAt: time }
       const result = await adminApi.saveWhiteboard(starter, true)
-      setBoards([result.board]); setActiveId(result.board.id); setActivePageId(result.board.pages[0].id)
+      boardsRef.current = [result.board]; setBoards(boardsRef.current); setActiveId(result.board.id); setActivePageId(result.board.pages[0].id)
     }).catch((reason) => setError(reason instanceof Error ? reason.message : 'The whiteboards could not be opened.')).finally(() => setLoading(false))
   }, [session])
 
@@ -285,6 +285,9 @@ export function WhiteboardPage() {
     if (!batch.length) return localStageQueue.current
     localStageQueue.current = localStageQueue.current.catch(() => undefined).then(async () => {
       for (const candidate of batch) await adminApi.stageWhiteboard(candidate)
+    }).catch((reason) => {
+      batch.forEach((candidate) => { if (!pendingLocalStages.current.has(candidate.id)) pendingLocalStages.current.set(candidate.id, candidate) })
+      throw reason
     })
     return localStageQueue.current
   }, [])
@@ -295,7 +298,14 @@ export function WhiteboardPage() {
     pendingLocalStages.current.set(next.id, next)
     setSaveState('saving')
     if (localStageTimer.current) window.clearTimeout(localStageTimer.current)
-    localStageTimer.current = window.setTimeout(() => { void flushLocalStages().catch(() => undefined) }, lowMemoryTablet() ? 420 : 180)
+    localStageTimer.current = window.setTimeout(() => {
+      void flushLocalStages().then(() => {
+        if (version === saveVersion.current && pendingSaves.current.has(next.id)) setSaveState('offline')
+      }).catch((reason) => {
+        if (version === saveVersion.current) setSaveState('unsaved')
+        setError(reason instanceof Error ? reason.message : 'The newest changes could not be stored on this device yet.')
+      })
+    }, lowMemoryTablet() ? 420 : 180)
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
       const batch = [...pendingSaves.current.values()]
@@ -308,9 +318,11 @@ export function WhiteboardPage() {
           const result = await adminApi.saveWhiteboard({ ...candidate, revision })
           queuedOnDevice ||= Boolean(result.queued)
           savedRevisions.current.set(candidate.id, result.board.revision || revision)
-          setBoards((current) => current.map((item) => item.id === candidate.id
+          const updatedBoards = boardsRef.current.map((item) => item.id === candidate.id
             ? item.updatedAt === candidate.updatedAt ? result.board : { ...item, revision: result.board.revision, createdAt: result.board.createdAt }
-            : item))
+            : item)
+          boardsRef.current = updatedBoards
+          setBoards(updatedBoards)
           const pending = pendingSaves.current.get(candidate.id)
           if (pending) pendingSaves.current.set(candidate.id, { ...pending, revision: result.board.revision })
         }
@@ -325,6 +337,15 @@ export function WhiteboardPage() {
     }, lowMemoryTablet() ? 2_400 : 1_400)
     return saveQueue.current
   }, [flushLocalStages])
+
+  const commitBoard = useCallback((next: WhiteboardBoard) => {
+    const current = boardsRef.current
+    const index = current.findIndex((candidate) => candidate.id === next.id)
+    const updated = index >= 0 ? current.map((candidate) => candidate.id === next.id ? next : candidate) : [next, ...current]
+    boardsRef.current = updated
+    setBoards(updated)
+    void saveBoard(next)
+  }, [saveBoard])
 
   useEffect(() => {
     const preserveLatestDrafts = () => { pendingSaves.current.forEach((candidate) => pendingLocalStages.current.set(candidate.id, candidate)); void flushLocalStages() }
@@ -455,31 +476,35 @@ export function WhiteboardPage() {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
       const latestStrokes = drag.current.latestStrokes; drag.current = null
       const current = boardsRef.current.find((candidate) => candidate.id === activeId)
-      if (current && page) {
-        const now = new Date().toISOString(); const next = { ...current, pages: current.pages.map((item) => item.id === page.id ? { ...item, strokes: latestStrokes, updatedAt: now } : item), updatedAt: now }
-        setBoards((items) => items.map((item) => item.id === next.id ? next : item)); void saveBoard(next)
+      const currentPage = current?.pages.find((candidate) => candidate.id === activePageId)
+      if (current && currentPage) {
+        const now = new Date().toISOString(); const next = { ...current, pages: current.pages.map((item) => item.id === currentPage.id ? { ...item, strokes: latestStrokes, updatedAt: now } : item), updatedAt: now }
+        commitBoard(next)
       }
       return
     }
     const stroke = activeStroke.current
-    if (!stroke || !board || !page) return
+    if (!stroke) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     activeStroke.current = null
-    setPast((history) => addHistory(history, page.strokes)); setFuture([])
+    const current = boardsRef.current.find((candidate) => candidate.id === activeId)
+    const currentPage = current?.pages.find((candidate) => candidate.id === activePageId)
+    if (!current || !currentPage) return
+    setPast((history) => addHistory(history, currentPage.strokes)); setFuture([])
     const updatedAt = new Date().toISOString()
-    const next = { ...board, pages: board.pages.map((candidate) => candidate.id === page.id ? { ...candidate, strokes: [...candidate.strokes, stroke], updatedAt } : candidate), updatedAt }
+    const next = { ...current, pages: current.pages.map((candidate) => candidate.id === currentPage.id ? { ...candidate, strokes: [...candidate.strokes, stroke], updatedAt } : candidate), updatedAt }
     if (['pen', 'highlighter', 'eraser'].includes(stroke.tool)) skipNextRepaint.current = true
-    setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
+    commitBoard(next)
   }
 
   function commitEditor() {
     if (!editor || !page || !editor.value.trim()) { setEditor(null); return }
     const stroke: WhiteboardStroke = { id: newId(editor.kind), tool: editor.kind, colour, size: fontSize, fontSize, fontFamily, underline, bold, italic, text: editor.value.trim(), points: [editor.point], updatedAt: new Date().toISOString(), ...(editor.kind === 'note' ? { width: 320, height: 230, noteColour: '#fff0a9' } : {}) }
-    setPast((history) => addHistory(history, page.strokes)); setFuture([]); updatePage({ strokes: [...page.strokes, stroke] }); setEditor(null); setSelectedIds([stroke.id]); setTool('select')
+    setPast((history) => addHistory(history, page.strokes)); setFuture([]); updatePage((current) => ({ strokes: [...current.strokes, stroke] })); setEditor(null); setSelectedIds([stroke.id]); setTool('select')
   }
 
-  function updateSelected(patch: Partial<WhiteboardStroke>) { if (!page || !selectedIds.length) return; const updatedAt = new Date().toISOString(); const selectedSet = new Set(selectedIds); updatePage({ strokes: page.strokes.map((stroke) => selectedSet.has(stroke.id) ? { ...stroke, ...patch, updatedAt } : stroke) }) }
-  function deleteStrokeIds(ids: string[]) { if (!page || !ids.length) return; const selectedSet = new Set(ids); setPast((history) => addHistory(history, page.strokes)); setFuture([]); updatePage({ strokes: page.strokes.filter((stroke) => !selectedSet.has(stroke.id)), deletedStrokeIds: [...new Set([...(page.deletedStrokeIds || []), ...ids])] }); setSelectedIds((current) => current.filter((id) => !selectedSet.has(id))) }
+  function updateSelected(patch: Partial<WhiteboardStroke>) { if (!page || !selectedIds.length) return; const updatedAt = new Date().toISOString(); const selectedSet = new Set(selectedIds); updatePage((current) => ({ strokes: current.strokes.map((stroke) => selectedSet.has(stroke.id) ? { ...stroke, ...patch, updatedAt } : stroke) })) }
+  function deleteStrokeIds(ids: string[]) { if (!page || !ids.length) return; const selectedSet = new Set(ids); setPast((history) => addHistory(history, page.strokes)); setFuture([]); updatePage((current) => ({ strokes: current.strokes.filter((stroke) => !selectedSet.has(stroke.id)), deletedStrokeIds: [...new Set([...(current.deletedStrokeIds || []), ...ids])] })); setSelectedIds((current) => current.filter((id) => !selectedSet.has(id))) }
   function deleteSelected() { deleteStrokeIds(selectedIds) }
   async function copySelection(cut = false) {
     if (!page || !selectedIds.length) { setError('Select handwriting, text, or other objects first.'); return }
@@ -511,7 +536,7 @@ export function WhiteboardPage() {
     const updatedAt = new Date().toISOString()
     const copies = duplicateWhiteboardStrokes(source, dx, dy, (stroke) => newId(stroke.tool), updatedAt)
     setPast((history) => addHistory(history, page.strokes)); setFuture([])
-    updatePage({ strokes: [...page.strokes, ...copies] }); setSelectedIds(copies.map((stroke) => stroke.id)); setTool('select'); setClipboardStrokes(copies); setError('')
+    updatePage((current) => ({ strokes: [...current.strokes, ...copies] })); setSelectedIds(copies.map((stroke) => stroke.id)); setTool('select'); setClipboardStrokes(copies); setError('')
   }
   function linkSelected() { const selected = page?.strokes.find((item) => item.id === selectedIds[0]); if (!selected) return; const url = window.prompt('Paste the link for this text or object:', selected.url || ''); if (url !== null) updateSelected({ url: url.trim() }) }
   function captionSelected() { const selected = page?.strokes.find((item) => item.id === selectedIds[0]); if (!selected) return; const text = window.prompt(selected.tool === 'image' ? 'Image caption:' : 'Edit text:', selected.text || ''); if (text !== null) updateSelected({ text: text.trim(), fontSize: selected.fontSize || 26 }) }
@@ -536,14 +561,14 @@ export function WhiteboardPage() {
   function reorderBoards(targetId: string) {
     if (lockedBoardIds.has(draggedBoardId) || lockedBoardIds.has(targetId)) return
     if (!draggedBoardId || draggedBoardId === targetId) return
-    const reordered = [...boards]; const from = reordered.findIndex((item) => item.id === draggedBoardId); const to = reordered.findIndex((item) => item.id === targetId); if (from < 0 || to < 0) return
+    const reordered = [...boardsRef.current]; const from = reordered.findIndex((item) => item.id === draggedBoardId); const to = reordered.findIndex((item) => item.id === targetId); if (from < 0 || to < 0) return
     const [moved] = reordered.splice(from, 1); reordered.splice(to, 0, moved); const updatedAt = new Date().toISOString()
-    const numbered = reordered.map((item, index) => ({ ...item, sortOrder: index, updatedAt })); setBoards(numbered); setDraggedBoardId(''); numbered.forEach((item) => { void saveBoard(item) })
+    const numbered = reordered.map((item, index) => ({ ...item, sortOrder: index, updatedAt })); boardsRef.current = numbered; setBoards(numbered); setDraggedBoardId(''); numbered.forEach((item) => { void saveBoard(item) })
   }
   function dropOnBoard(event: React.DragEvent<HTMLButtonElement>, targetId: string) {
     event.preventDefault(); const rawPage = event.dataTransfer.getData('application/x-nya-page')
     if (!rawPage) { reorderBoards(targetId); return }
-    try { const reference = JSON.parse(rawPage) as { boardId: string; pageId: string }; if (reference.boardId === targetId) return; const source = boards.find((item) => item.id === reference.boardId); const target = boards.find((item) => item.id === targetId); const movedPage = source?.pages.find((item) => item.id === reference.pageId); if (!source || !target || !movedPage || source.pages.length < 2) { setError('A notebook must keep at least one page. Add another page before moving this one.'); return } const updatedAt = new Date().toISOString(); const nextSource = { ...source, pages: source.pages.filter((item) => item.id !== movedPage.id), deletedPageIds: [...new Set([...(source.deletedPageIds || []), movedPage.id])], updatedAt }; const nextTarget = { ...target, pages: [...target.pages, { ...movedPage, updatedAt }], deletedPageIds: (target.deletedPageIds || []).filter((id) => id !== movedPage.id), updatedAt }; setBoards((current) => current.map((item) => item.id === source.id ? nextSource : item.id === target.id ? nextTarget : item)); void saveBoard(nextSource); void saveBoard(nextTarget) } catch { setError('That page could not be moved.') }
+    try { const reference = JSON.parse(rawPage) as { boardId: string; pageId: string }; if (reference.boardId === targetId) return; const source = boardsRef.current.find((item) => item.id === reference.boardId); const target = boardsRef.current.find((item) => item.id === targetId); const movedPage = source?.pages.find((item) => item.id === reference.pageId); if (!source || !target || !movedPage || source.pages.length < 2) { setError('A notebook must keep at least one page. Add another page before moving this one.'); return } const updatedAt = new Date().toISOString(); const nextSource = { ...source, pages: source.pages.filter((item) => item.id !== movedPage.id), deletedPageIds: [...new Set([...(source.deletedPageIds || []), movedPage.id])], updatedAt }; const nextTarget = { ...target, pages: [...target.pages, { ...movedPage, updatedAt }], deletedPageIds: (target.deletedPageIds || []).filter((id) => id !== movedPage.id), updatedAt }; boardsRef.current = boardsRef.current.map((item) => item.id === source.id ? nextSource : item.id === target.id ? nextTarget : item); setBoards(boardsRef.current); void saveBoard(nextSource); void saveBoard(nextTarget) } catch { setError('That page could not be moved.') }
   }
 
   function addLink() {
@@ -551,13 +576,13 @@ export function WhiteboardPage() {
     const url = window.prompt('Paste a website, presentation, or notebook link:')?.trim(); if (!url) return
     const text = window.prompt('What should the link card say?', 'Open resource')?.trim() || 'Open resource'
     const stroke: WhiteboardStroke = { id: newId('link'), tool: 'link', colour, size: 30, fontSize: 30, fontFamily, underline: true, text: `↗ ${text}`, url, width: 390, height: 120, points: [{ x: 100, y: 100, pressure: .5 }], updatedAt: new Date().toISOString() }
-    setPast((history) => addHistory(history, page.strokes)); updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select')
+    setPast((history) => addHistory(history, page.strokes)); updatePage((current) => ({ strokes: [...current.strokes, stroke] })); setSelectedIds([stroke.id]); setTool('select')
   }
 
   async function importImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; if (!file || !page) return
     setUploadingImage(true)
-    try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, width: 480, height: 340, points: [{ x: 100, y: 100, pressure: .5 }], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false); event.target.value = '' }
+    try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, width: 480, height: 340, points: [{ x: 100, y: 100, pressure: .5 }], updatedAt: new Date().toISOString() }; updatePage((current) => ({ strokes: [...current.strokes, stroke] })); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false); event.target.value = '' }
   }
 
   async function importCoverArt(event: React.ChangeEvent<HTMLInputElement>) {
@@ -575,66 +600,78 @@ export function WhiteboardPage() {
     event.preventDefault(); if (!page || !board) return
     const rect = paperRef.current?.getBoundingClientRect(); const point = rect ? { x: Math.max(0, Math.min(BOARD_WIDTH - 80, (event.clientX - rect.left) * BOARD_WIDTH / rect.width)), y: Math.max(0, Math.min(BOARD_HEIGHT - 80, (event.clientY - rect.top) * BOARD_HEIGHT / rect.height)), pressure: .5 } : { x: 120, y: 120, pressure: .5 }
     const file = [...event.dataTransfer.files].find((item) => item.type.startsWith('image/'))
-    if (file) { setUploadingImage(true); try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, text: file.name.replace(/\.[^.]+$/, ''), width: 480, height: 340, points: [point], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false) }; return }
+    if (file) { setUploadingImage(true); try { const upload = await optimiseWhiteboardImageUpload(file); const { asset } = await adminApi.upload(upload); const stroke: WhiteboardStroke = { id: newId('image'), tool: 'image', colour: '#253a35', size: 1, imageUrl: asset.url, text: file.name.replace(/\.[^.]+$/, ''), width: 480, height: 340, points: [point], updatedAt: new Date().toISOString() }; updatePage((current) => ({ strokes: [...current.strokes, stroke] })); setSelectedIds([stroke.id]); setTool('select') } catch (reason) { setError(reason instanceof Error ? reason.message : 'The image could not be imported.') } finally { setUploadingImage(false) }; return }
     const raw = event.dataTransfer.getData('application/x-nya-page') || event.dataTransfer.getData('application/x-nya-board'); if (!raw) return
-    try { const reference = JSON.parse(raw) as { boardId: string; pageId?: string; title: string }; const url = `/notebooks?board=${encodeURIComponent(reference.boardId)}${reference.pageId ? `&page=${encodeURIComponent(reference.pageId)}` : ''}`; const stroke: WhiteboardStroke = { id: newId('link'), tool: 'link', colour, size: 28, fontSize: 28, fontFamily, bold: true, underline: false, text: `↗ ${reference.title}`, url, width: 430, height: 120, points: [point], updatedAt: new Date().toISOString() }; updatePage({ strokes: [...page.strokes, stroke] }); setSelectedIds([stroke.id]); setTool('select') } catch { setError('That notebook reference could not be added.') }
+    try { const reference = JSON.parse(raw) as { boardId: string; pageId?: string; title: string }; const url = `/notebooks?board=${encodeURIComponent(reference.boardId)}${reference.pageId ? `&page=${encodeURIComponent(reference.pageId)}` : ''}`; const stroke: WhiteboardStroke = { id: newId('link'), tool: 'link', colour, size: 28, fontSize: 28, fontFamily, bold: true, underline: false, text: `↗ ${reference.title}`, url, width: 430, height: 120, points: [point], updatedAt: new Date().toISOString() }; updatePage((current) => ({ strokes: [...current.strokes, stroke] })); setSelectedIds([stroke.id]); setTool('select') } catch { setError('That notebook reference could not be added.') }
   }
 
   function changeStrokes(strokes: WhiteboardStroke[], nextPast: WhiteboardStroke[][], nextFuture: WhiteboardStroke[][]) {
-    if (!board || !page) return
+    const current = boardsRef.current.find((candidate) => candidate.id === activeId)
+    const currentPage = current?.pages.find((candidate) => candidate.id === activePageId)
+    if (!current || !currentPage) return
     const updatedAt = new Date().toISOString(); const existing = new Set(strokes.map((stroke) => stroke.id))
-    const next = { ...board, pages: board.pages.map((candidate) => candidate.id === page.id ? { ...candidate, strokes: strokes.map((stroke) => ({ ...stroke, updatedAt })), deletedStrokeIds: (candidate.deletedStrokeIds || []).filter((id) => !existing.has(id)), updatedAt } : candidate), updatedAt }
-    setPast(nextPast); setFuture(nextFuture); setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
+    const next = { ...current, pages: current.pages.map((candidate) => candidate.id === currentPage.id ? { ...candidate, strokes: strokes.map((stroke) => ({ ...stroke, updatedAt })), deletedStrokeIds: (candidate.deletedStrokeIds || []).filter((id) => !existing.has(id)), updatedAt } : candidate), updatedAt }
+    setPast(nextPast); setFuture(nextFuture); commitBoard(next)
   }
 
   function undo() { if (page && past.length) changeStrokes(past[past.length - 1], past.slice(0, -1), [page.strokes, ...future].slice(0, historyLimit())) }
-  function redo() { if (page && future.length) changeStrokes(future[0], [...past, page.strokes].slice(-50), future.slice(1)) }
+  function redo() { if (page && future.length) changeStrokes(future[0], [...past, page.strokes].slice(-historyLimit()), future.slice(1)) }
 
   async function addBoard(parentId?: string) {
-    const time = new Date().toISOString(); const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: '#bd5d87', coverStyle: 'blossom', strokes: [], updatedAt: time }; const next: WhiteboardBoard = { id: newId('board'), title: parentId ? 'New subboard' : `Study notebook ${boards.length + 1}`, pages: [firstPage], published: false, parentId, revision: 1, sortOrder: boards.filter((candidate) => candidate.parentId === parentId).length, createdAt: time, updatedAt: time }
-    try { const result = await adminApi.saveWhiteboard(next, true); setBoards((current) => [result.board, ...current]); setActiveId(result.board.id); setActivePageId(result.board.pages[0].id); setPast([]); setFuture([]) } catch (reason) { setError(reason instanceof Error ? reason.message : 'The board could not be created.') }
+    const current = boardsRef.current
+    const time = new Date().toISOString(); const firstPage: WhiteboardPageData = { id: newId('page'), name: 'Page 1', background: 'grid', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: '#bd5d87', coverStyle: 'blossom', strokes: [], updatedAt: time }; const next: WhiteboardBoard = { id: newId('board'), title: parentId ? 'New subboard' : `Study notebook ${current.length + 1}`, pages: [firstPage], published: false, parentId, revision: 1, sortOrder: current.filter((candidate) => candidate.parentId === parentId).length, createdAt: time, updatedAt: time }
+    try { const result = await adminApi.saveWhiteboard(next, true); boardsRef.current = [result.board, ...boardsRef.current]; setBoards(boardsRef.current); setActiveId(result.board.id); setActivePageId(result.board.pages[0].id); setPast([]); setFuture([]) } catch (reason) { setError(reason instanceof Error ? reason.message : 'The board could not be created.') }
   }
 
   async function deleteBoard() {
-    if (!board) return
-    const deleting = board
+    const deleting = boardsRef.current.find((candidate) => candidate.id === activeId)
+    if (!deleting) return
     pendingSaves.current.delete(deleting.id)
+    pendingLocalStages.current.delete(deleting.id)
     try {
       await saveQueue.current.catch(() => undefined)
       pendingSaves.current.delete(deleting.id)
       await adminApi.removeWhiteboard(deleting.id)
       setLockedBoardIds((current) => { const next = new Set(current); next.delete(deleting.id); return next })
-      const remaining = boards.filter((candidate) => candidate.id !== deleting.id).map((candidate) => candidate.parentId === deleting.id ? { ...candidate, parentId: deleting.parentId } : candidate)
+      const remaining = boardsRef.current.filter((candidate) => candidate.id !== deleting.id).map((candidate) => candidate.parentId === deleting.id ? { ...candidate, parentId: deleting.parentId } : candidate)
       const fallback = remaining.find((candidate) => candidate.id === deleting.parentId) || remaining[0]
-      setBoards(remaining); setActiveId(fallback?.id || ''); setActivePageId(fallback?.pages[0]?.id || '')
+      boardsRef.current = remaining; setBoards(remaining); setActiveId(fallback?.id || ''); setActivePageId(fallback?.pages[0]?.id || '')
       if (!remaining.length) await addBoard()
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'The board could not be deleted.') }
   }
 
   function updateBoard(patch: Partial<WhiteboardBoard>) {
-    if (!board) return
-    const next = { ...board, ...patch, updatedAt: new Date().toISOString() }
-    setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
+    const current = boardsRef.current.find((candidate) => candidate.id === activeId)
+    if (!current) return
+    const next = { ...current, ...patch, updatedAt: new Date().toISOString() }
+    commitBoard(next)
   }
 
-  function updatePage(patch: Partial<WhiteboardPageData>) {
-    if (!board || !page) return
+  function updatePage(patch: Partial<WhiteboardPageData> | ((current: WhiteboardPageData) => Partial<WhiteboardPageData>)) {
+    const current = boardsRef.current.find((candidate) => candidate.id === activeId)
+    const currentPage = current?.pages.find((candidate) => candidate.id === activePageId)
+    if (!current || !currentPage) return
     const updatedAt = new Date().toISOString()
-    const next = { ...board, pages: board.pages.map((candidate) => candidate.id === page.id ? { ...candidate, ...patch, updatedAt } : candidate), updatedAt }
-    setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); void saveBoard(next)
+    const resolved = typeof patch === 'function' ? patch(currentPage) : patch
+    const next = { ...current, pages: current.pages.map((candidate) => candidate.id === currentPage.id ? { ...candidate, ...resolved, updatedAt } : candidate), updatedAt }
+    commitBoard(next)
   }
 
   function addPage() {
-    if (!board) return
-    const updatedAt = new Date().toISOString(); const nextPage: WhiteboardPageData = { id: newId('page'), name: `Page ${board.pages.length + 1}`, background: page?.background || 'grid', paperSize: page?.paperSize || 'a3', pageScale: page?.pageScale || 100, orientation: page?.orientation || 'portrait', rulingSize: page?.rulingSize || 20, accentColour: board.pages[0]?.accentColour || '#bd5d87', strokes: [], updatedAt }
-    const next = { ...board, pages: [...board.pages, nextPage], updatedAt }
-    setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); setActivePageId(nextPage.id); setPast([]); setFuture([]); void saveBoard(next)
+    const current = boardsRef.current.find((candidate) => candidate.id === activeId)
+    const currentPage = current?.pages.find((candidate) => candidate.id === activePageId)
+    if (!current) return
+    const updatedAt = new Date().toISOString(); const nextPage: WhiteboardPageData = { id: newId('page'), name: `Page ${current.pages.length + 1}`, background: currentPage?.background || 'grid', paperSize: currentPage?.paperSize || 'a3', pageScale: currentPage?.pageScale || 100, orientation: currentPage?.orientation || 'portrait', rulingSize: currentPage?.rulingSize || 20, accentColour: current.pages[0]?.accentColour || '#bd5d87', strokes: [], updatedAt }
+    const next = { ...current, pages: [...current.pages, nextPage], updatedAt }
+    commitBoard(next); setActivePageId(nextPage.id); setPast([]); setFuture([])
   }
 
   function deletePage() {
-    if (!board || !page || board.pages.length === 1) return
-    const pages = board.pages.filter((candidate) => candidate.id !== page.id); const next = { ...board, pages, deletedPageIds: [...new Set([...(board.deletedPageIds || []), page.id])], updatedAt: new Date().toISOString() }
-    setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); setActivePageId(pages[0].id); setPast([]); setFuture([]); void saveBoard(next)
+    const current = boardsRef.current.find((candidate) => candidate.id === activeId)
+    const currentPage = current?.pages.find((candidate) => candidate.id === activePageId)
+    if (!current || !currentPage || current.pages.length === 1) return
+    const pages = current.pages.filter((candidate) => candidate.id !== currentPage.id); const next = { ...current, pages, deletedPageIds: [...new Set([...(current.deletedPageIds || []), currentPage.id])], updatedAt: new Date().toISOString() }
+    commitBoard(next); setActivePageId(pages[0].id); setPast([]); setFuture([])
   }
 
   function turnPage(direction: number) { if (!board || !page) return; const index = board.pages.findIndex((item) => item.id === page.id); const next = index + direction; if (next >= 0 && next < board.pages.length) { setActivePageId(board.pages[next].id); setSelectedIds([]); setPast([]); setFuture([]) } }
@@ -663,19 +700,19 @@ export function WhiteboardPage() {
       let imported: WhiteboardPageData
       if (file.type.startsWith('image/')) {
         setUploadingImage(true)
+        const latestBoard = boardsRef.current.find((candidate) => candidate.id === activeId) || board
         const importedAt = new Date().toISOString()
         const upload = await optimiseWhiteboardImageUpload(file)
         const previewUrl = URL.createObjectURL(upload)
-        imported = { id: newId('page'), name: file.name.replace(/\.[^.]+$/, '') || 'Imported page', background: 'plain', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: board.pages[0]?.accentColour || '#bd5d87', strokes: [{ id: newId('image'), tool: 'image', colour: '#000000', size: 1, points: [{ x: 40, y: 40, pressure: .5 }], imageUrl: previewUrl, width: 1160, height: 1640, updatedAt: importedAt }], updatedAt: importedAt }
-        const optimistic = { ...board, pages: [...board.pages, imported], updatedAt: new Date().toISOString() }
-        boardsRef.current = boardsRef.current.map((candidate) => candidate.id === board.id ? optimistic : candidate)
+        imported = { id: newId('page'), name: file.name.replace(/\.[^.]+$/, '') || 'Imported page', background: 'plain', paperSize: 'a3', pageScale: 100, orientation: 'portrait', rulingSize: 20, accentColour: latestBoard.pages[0]?.accentColour || '#bd5d87', strokes: [{ id: newId('image'), tool: 'image', colour: '#000000', size: 1, points: [{ x: 40, y: 40, pressure: .5 }], imageUrl: previewUrl, width: 1160, height: 1640, updatedAt: importedAt }], updatedAt: importedAt }
+        const optimistic = { ...latestBoard, pages: [...latestBoard.pages, imported], updatedAt: new Date().toISOString() }
+        boardsRef.current = boardsRef.current.map((candidate) => candidate.id === latestBoard.id ? optimistic : candidate)
         setBoards(boardsRef.current); setActivePageId(imported.id); setPast([]); setFuture([]); setError('')
         const { asset } = await adminApi.upload(upload)
         dropWhiteboardImage(previewUrl); URL.revokeObjectURL(previewUrl)
-        const latest = boardsRef.current.find((candidate) => candidate.id === board.id) || optimistic
+        const latest = boardsRef.current.find((candidate) => candidate.id === latestBoard.id) || optimistic
         const next = { ...latest, pages: latest.pages.map((candidate) => candidate.id === imported.id ? { ...candidate, strokes: candidate.strokes.map((stroke) => stroke.imageUrl === previewUrl ? { ...stroke, imageUrl: asset.url } : stroke) } : candidate), updatedAt: new Date().toISOString() }
-        boardsRef.current = boardsRef.current.map((candidate) => candidate.id === board.id ? next : candidate)
-        setBoards(boardsRef.current); void saveBoard(next)
+        commitBoard(next)
         return
       } else {
         const payload = JSON.parse(await file.text()) as { format?: string; page?: WhiteboardPageData } | WhiteboardPageData
@@ -684,8 +721,9 @@ export function WhiteboardPage() {
         const importedAt = new Date().toISOString()
         imported = { ...candidate, id: newId('page'), name: `${candidate.name || 'Imported page'} (imported)`, strokes: candidate.strokes.map((stroke) => ({ ...stroke, id: newId(stroke.tool), updatedAt: importedAt })), deletedStrokeIds: [], updatedAt: importedAt }
       }
-      const next = { ...board, pages: [...board.pages, imported], updatedAt: new Date().toISOString() }
-      setBoards((current) => current.map((candidate) => candidate.id === board.id ? next : candidate)); setActivePageId(imported.id); setPast([]); setFuture([]); setError(''); void saveBoard(next)
+      const latestBoard = boardsRef.current.find((candidate) => candidate.id === activeId) || board
+      const next = { ...latestBoard, pages: [...latestBoard.pages, imported], updatedAt: new Date().toISOString() }
+      commitBoard(next); setActivePageId(imported.id); setPast([]); setFuture([]); setError('')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The page could not be imported.')
     } finally { setUploadingImage(false) }
