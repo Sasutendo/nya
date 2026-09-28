@@ -1,9 +1,10 @@
 import { DEFAULT_SETTINGS, DEMO_ITEMS } from './demo-data'
-import { DEMO_CALENDAR_EVENTS, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
+import { DEMO_CALENDAR_EVENTS, DEMO_SHIFT_TEMPLATES, DEMO_STICKY_NOTES, DEMO_TASKS } from './demo-planner'
 import { DEMO_NURSING_SKILLS, DEMO_STUDY_CARDS, DEMO_STUDY_REFLECTIONS } from './demo-study'
-import { cacheWhiteboards, cachedWhiteboards, pendingWhiteboards, queueWhiteboardWrite, removePendingWhiteboard } from './offline-whiteboards'
+import { cacheWhiteboards, cachedWhiteboards, pendingWhiteboards, queueWhiteboardDelete, queueWhiteboardWrite, removePendingWhiteboard } from './offline-whiteboards'
+import { mergeWhiteboardChanges } from './whiteboard-utils'
 import { serialiseWhiteboard } from './whiteboard-serializer'
-import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
+import type { CalendarEvent, ContentItem, ItemFilters, MediaAsset, NursingSkill, PlannerData, PlannerTask, SessionState, ShiftTemplate, SiteSettings, StickyNote, StudyCard, StudyHubData, StudyReflection, WhiteboardBoard } from '../types'
 
 const LOCAL_ITEMS_KEY = 'nya-local-items-v1'
 const LOCAL_SETTINGS_KEY = 'nya-local-settings-v1'
@@ -13,6 +14,7 @@ const LOCAL_EMAIL_KEY = 'nya-local-owner-email-v1'
 const LOCAL_EVENTS_KEY = 'nya-local-calendar-v1'
 const LOCAL_NOTES_KEY = 'nya-local-stickies-v1'
 const LOCAL_TASKS_KEY = 'nya-local-tasks-v1'
+const LOCAL_SHIFT_TEMPLATES_KEY = 'nya-local-shift-templates-v1'
 const LOCAL_STUDY_CARDS_KEY = 'nya-local-study-cards-v1'
 const LOCAL_NURSING_SKILLS_KEY = 'nya-local-nursing-skills-v1'
 const LOCAL_REFLECTIONS_KEY = 'nya-local-reflections-v1'
@@ -24,16 +26,18 @@ const LOCAL_DEMO = import.meta.env.DEV && import.meta.env.VITE_USE_API !== 'true
 
 class ApiError extends Error {
   status: number
+  data?: unknown
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message)
     this.status = status
+    this.data = data
   }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method || 'GET').toUpperCase()
-  const attempts = method === 'GET' || method === 'PUT' ? 3 : 1
+  const attempts = navigator.onLine && (method === 'GET' || method === 'PUT') ? 3 : 1
   let response: Response | undefined
   let networkError: unknown
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -58,7 +62,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: 'Something went wrong.' })) as { error?: string }
-    throw new ApiError(payload.error || 'Something went wrong.', response.status)
+    throw new ApiError(payload.error || 'Something went wrong.', response.status, payload)
   }
 
   return response.json() as Promise<T>
@@ -167,6 +171,7 @@ function writeLocalCollection<T>(key: string, values: T[]) {
 const readLocalEvents = () => readLocalCollection(LOCAL_EVENTS_KEY, DEMO_CALENDAR_EVENTS)
 const readLocalNotes = () => readLocalCollection(LOCAL_NOTES_KEY, DEMO_STICKY_NOTES)
 const readLocalTasks = () => readLocalCollection(LOCAL_TASKS_KEY, DEMO_TASKS)
+const readLocalShiftTemplates = () => readLocalCollection(LOCAL_SHIFT_TEMPLATES_KEY, DEMO_SHIFT_TEMPLATES)
 const readLocalStudyCards = () => readLocalCollection(LOCAL_STUDY_CARDS_KEY, DEMO_STUDY_CARDS)
 const readLocalNursingSkills = () => readLocalCollection(LOCAL_NURSING_SKILLS_KEY, DEMO_NURSING_SKILLS)
 const readLocalReflections = () => readLocalCollection(LOCAL_REFLECTIONS_KEY, DEMO_STUDY_REFLECTIONS)
@@ -226,6 +231,18 @@ export async function getPublicWhiteboards(): Promise<WhiteboardBoard[]> {
   catch { return [] }
 }
 
+export async function recordWhiteboardView(id: string): Promise<number | null> {
+  const viewId = viewIdFor(`whiteboard:${id}`)
+  if (LOCAL_DEMO) {
+    const board = readLocalWhiteboards().find((candidate) => candidate.id === id)
+    return board?.viewCount ?? 0
+  }
+  try {
+    const result = await request<{ viewCount: number }>(`/api/public/whiteboards/${encodeURIComponent(id)}/view`, { method: 'POST', body: JSON.stringify({ viewId }) })
+    return result.viewCount
+  } catch { return null }
+}
+
 export async function getPublicItem(slug: string): Promise<ContentItem | null> {
   if (LOCAL_DEMO) return readLocalItems().filter((item) => item.status === 'published').find((item) => item.slug === slug) || null
   try {
@@ -233,6 +250,16 @@ export async function getPublicItem(slug: string): Promise<ContentItem | null> {
     return result.item
   } catch {
     return DEMO_ITEMS.find((item) => item.slug === slug) || null
+  }
+}
+
+export async function getPublicStudyCards(): Promise<StudyCard[]> {
+  if (LOCAL_DEMO) return readLocalStudyCards().filter((card) => card.published)
+  try {
+    const result = await request<{ cards: StudyCard[] }>('/api/public/study-cards')
+    return result.cards
+  } catch {
+    return DEMO_STUDY_CARDS.filter((card) => card.published)
   }
 }
 
@@ -299,13 +326,18 @@ export function watchSettings(onSettings: (settings: SiteSettings) => void): () 
     }
   }
 
-  const refresh = () => getSettings().then(deliver).catch(() => undefined)
+  const refresh = () => {
+    if (!navigator.onLine) return
+    getSettings().then(deliver).catch(() => undefined)
+  }
   const pollTimer = window.setInterval(refresh, 15_000)
   const onVisibility = () => { if (document.visibilityState === 'visible') refresh() }
+  window.addEventListener('online', refresh)
   document.addEventListener('visibilitychange', onVisibility)
   return () => {
     stopped = true
     window.clearInterval(pollTimer)
+    window.removeEventListener('online', refresh)
     document.removeEventListener('visibilitychange', onVisibility)
   }
 }
@@ -376,18 +408,46 @@ async function flushOfflineWhiteboards(): Promise<void> {
   if (!navigator.onLine) return
   for (const pending of await pendingWhiteboards()) {
     try {
-      const path = `/api/admin/whiteboards${pending.create ? '' : `/${pending.board.id}`}`
-      await request<{ board: WhiteboardBoard }>(path, { method: pending.create ? 'POST' : 'PUT', body: JSON.stringify(pending.board) })
-      await removePendingWhiteboard(pending.id)
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 404 && !pending.create) {
-        await request<{ board: WhiteboardBoard }>('/api/admin/whiteboards', { method: 'POST', body: JSON.stringify(pending.board) })
+      if (pending.delete) {
+        await request<{ ok: true }>(`/api/admin/whiteboards/${pending.id}`, { method: 'DELETE' }).catch((reason) => { if (!(reason instanceof ApiError && reason.status === 404)) throw reason })
         await removePendingWhiteboard(pending.id)
+        continue
+      }
+      if (!pending.board) { await removePendingWhiteboard(pending.id); continue }
+      const queuedBoard = pending.board
+      const path = `/api/admin/whiteboards${pending.create ? '' : `/${queuedBoard.id}`}`
+      const result = await saveRemoteWhiteboard(queuedBoard, Boolean(pending.create), path)
+      await cacheWhiteboards([result.board])
+      await removePendingWhiteboard(pending.id, queuedBoard.updatedAt)
+    } catch (reason) {
+      const queuedBoard = pending.board
+      if (queuedBoard && reason instanceof ApiError && reason.status === 404 && !pending.create) {
+        const result = await saveRemoteWhiteboard(queuedBoard, true, '/api/admin/whiteboards')
+        await cacheWhiteboards([result.board])
+        await removePendingWhiteboard(pending.id, queuedBoard.updatedAt)
         continue
       }
       throw reason
     }
   }
+}
+
+async function saveRemoteWhiteboard(board: WhiteboardBoard, create: boolean, path = `/api/admin/whiteboards${create ? '' : `/${board.id}`}`): Promise<{ board: WhiteboardBoard }> {
+  let candidate = board
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const body = await serialiseWhiteboard(candidate)
+      return await request<{ board: WhiteboardBoard }>(attempt === 0 ? path : `/api/admin/whiteboards/${board.id}`, { method: create && attempt === 0 ? 'POST' : 'PUT', body })
+    } catch (reason) {
+      const conflict = reason instanceof ApiError && reason.status === 409 && reason.data && typeof reason.data === 'object'
+        ? (reason.data as { board?: WhiteboardBoard }).board
+        : undefined
+      if (!conflict || create) throw reason
+      candidate = mergeWhiteboardChanges(candidate, conflict)
+      if (attempt === 2) throw reason
+    }
+  }
+  throw new ApiError('The notebook changed too quickly to sync. Your offline copy is still safe.', 409)
 }
 
 export const adminApi = {
@@ -436,7 +496,7 @@ export const adminApi = {
     return request<{ settings: SiteSettings }>('/api/admin/settings', { method: 'PUT', body: JSON.stringify(settings) })
   },
   planner: async (): Promise<PlannerData> => {
-    if (LOCAL_DEMO) return { events: readLocalEvents(), notes: readLocalNotes(), tasks: readLocalTasks() }
+    if (LOCAL_DEMO) return { events: readLocalEvents(), templates: readLocalShiftTemplates(), notes: readLocalNotes(), tasks: readLocalTasks() }
     return request<PlannerData>('/api/admin/planner')
   },
   saveEvent: async (event: CalendarEvent, create = false): Promise<{ event: CalendarEvent }> => {
@@ -452,6 +512,20 @@ export const adminApi = {
   removeEvent: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_EVENTS_KEY, readLocalEvents().filter((event) => event.id !== id)); return { ok: true } }
     return request<{ ok: true }>(`/api/admin/calendar/${id}`, { method: 'DELETE' })
+  },
+  saveShiftTemplate: async (template: ShiftTemplate, create = false): Promise<{ template: ShiftTemplate }> => {
+    if (LOCAL_DEMO) {
+      const templates = readLocalShiftTemplates()
+      const exists = templates.some((candidate) => candidate.id === template.id)
+      const saved = { ...template, updatedAt: new Date().toISOString() }
+      writeLocalCollection(LOCAL_SHIFT_TEMPLATES_KEY, exists ? templates.map((candidate) => candidate.id === template.id ? saved : candidate) : [...templates, saved])
+      return { template: saved }
+    }
+    return request<{ template: ShiftTemplate }>(`/api/admin/shift-templates${create ? '' : `/${template.id}`}`, { method: create ? 'POST' : 'PUT', body: JSON.stringify(template) })
+  },
+  removeShiftTemplate: async (id: string): Promise<{ ok: true }> => {
+    if (LOCAL_DEMO) { writeLocalCollection(LOCAL_SHIFT_TEMPLATES_KEY, readLocalShiftTemplates().filter((template) => template.id !== id)); return { ok: true } }
+    return request<{ ok: true }>(`/api/admin/shift-templates/${id}`, { method: 'DELETE' })
   },
   saveSticky: async (note: StickyNote, create = false): Promise<{ note: StickyNote }> => {
     if (LOCAL_DEMO) {
@@ -531,24 +605,24 @@ export const adminApi = {
     if (LOCAL_DEMO) return { boards: readLocalWhiteboards() }
     if (!navigator.onLine) {
       const cached = await cachedWhiteboards(); const pending = await pendingWhiteboards(); const merged = [...cached]
-      pending.forEach(({ board }) => { const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
+      pending.forEach(({ board, delete: deleted, id }) => { if (deleted) { const index = merged.findIndex((candidate) => candidate.id === id); if (index >= 0) merged.splice(index, 1); return }; if (!board) return; const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
       return { boards: merged }
     }
     try {
       await flushOfflineWhiteboards()
       const result = await request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
-      await cacheWhiteboards(result.boards)
+      await cacheWhiteboards(result.boards, true)
       return result
     } catch (reason) {
       const cached = await cachedWhiteboards()
       const pending = await pendingWhiteboards()
       const merged = [...cached]
-      pending.forEach(({ board }) => { const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
+      pending.forEach(({ board, delete: deleted, id }) => { if (deleted) { const index = merged.findIndex((candidate) => candidate.id === id); if (index >= 0) merged.splice(index, 1); return }; if (!board) return; const index = merged.findIndex((candidate) => candidate.id === board.id); if (index >= 0) merged[index] = board; else merged.unshift(board) })
       if (merged.length) return { boards: merged }
       throw reason
     }
   },
-  saveWhiteboard: async (board: WhiteboardBoard, create = false): Promise<{ board: WhiteboardBoard }> => {
+  saveWhiteboard: async (board: WhiteboardBoard, create = false): Promise<{ board: WhiteboardBoard; queued?: boolean }> => {
     if (LOCAL_DEMO) {
       const boards = readLocalWhiteboards()
       const exists = boards.some((candidate) => candidate.id === board.id)
@@ -559,42 +633,79 @@ export const adminApi = {
     if (!navigator.onLine) {
       await queueWhiteboardWrite(board, create)
       window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: board.id } }))
-      return { board }
+      return { board, queued: true }
     }
     try {
-      const body = await serialiseWhiteboard(board)
-      const result = await request<{ updatedAt: string }>(`/api/admin/whiteboards${create ? '' : `/${board.id}`}`, {
-        method: create ? 'POST' : 'PUT',
-        headers: { 'X-Nya-Compact': '1' },
-        body,
-      })
-      const saved = { ...board, updatedAt: result.updatedAt }
-      window.setTimeout(() => { void cacheWhiteboards([saved]).catch(() => undefined) }, 0)
-      return { board: saved }
+      const result = await saveRemoteWhiteboard(board, create)
+      await cacheWhiteboards([result.board])
+      await removePendingWhiteboard(board.id, board.updatedAt)
+      return result
     } catch (reason) {
       if (navigator.onLine && reason instanceof ApiError && reason.status > 0 && reason.status < 500) throw reason
       await queueWhiteboardWrite(board, create)
       window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: board.id } }))
-      return { board }
+      return { board, queued: true }
     }
   },
-  syncWhiteboards: async (): Promise<void> => { await flushOfflineWhiteboards() },
+  stageWhiteboard: async (board: WhiteboardBoard, create = false): Promise<void> => {
+    if (LOCAL_DEMO) return
+    await queueWhiteboardWrite(board, create)
+  },
+  syncWhiteboards: async (): Promise<{ boards: WhiteboardBoard[]; queued?: boolean }> => {
+    await flushOfflineWhiteboards()
+    const result = await request<{ boards: WhiteboardBoard[] }>('/api/admin/whiteboards')
+    await cacheWhiteboards(result.boards, true)
+    const pending = await pendingWhiteboards()
+    const merged = [...result.boards]
+    pending.forEach(({ board, delete: deleted, id }) => {
+      const index = merged.findIndex((candidate) => candidate.id === id)
+      if (deleted) { if (index >= 0) merged.splice(index, 1); return }
+      if (!board) return
+      if (index >= 0) merged[index] = board
+      else merged.unshift(board)
+    })
+    return { boards: merged, queued: pending.length > 0 }
+  },
   removeWhiteboard: async (id: string): Promise<{ ok: true }> => {
     if (LOCAL_DEMO) { writeLocalCollection(LOCAL_WHITEBOARDS_KEY, readLocalWhiteboards().filter((board) => board.id !== id)); return { ok: true } }
-    return request<{ ok: true }>(`/api/admin/whiteboards/${id}`, { method: 'DELETE' })
+    await queueWhiteboardDelete(id)
+    if (!navigator.onLine) { window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: id } })); return { ok: true } }
+    try {
+      const result = await request<{ ok: true }>(`/api/admin/whiteboards/${id}`, { method: 'DELETE' })
+      await removePendingWhiteboard(id)
+      return result
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 404) { await removePendingWhiteboard(id); return { ok: true } }
+      if (reason instanceof ApiError && reason.status > 0 && reason.status < 500) { await removePendingWhiteboard(id); throw reason }
+      window.dispatchEvent(new CustomEvent('nya-offline-save', { detail: { boardId: id } }))
+      return { ok: true }
+    }
   },
   upload: async (file: File): Promise<{ asset: MediaAsset }> => {
     if (LOCAL_DEMO) return { asset: await localFileAsset(file) }
-    try {
-      const response = await fetch('/api/admin/upload', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-        body: file,
-      })
-      const payload = await response.json() as { asset?: MediaAsset; error?: string }
-      if (!response.ok || !payload.asset) throw new ApiError(payload.error || 'The file could not be uploaded.', response.status)
-      return { asset: payload.asset }
-    } catch (reason) { throw reason }
+    let lastFailure: unknown
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetch('/api/admin/upload', {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+          body: file,
+        })
+        const text = await response.text()
+        let payload: { asset?: MediaAsset; error?: string } = {}
+        try { payload = JSON.parse(text) as { asset?: MediaAsset; error?: string } } catch { /* The fallback below describes malformed server responses. */ }
+        if (response.ok && payload.asset) return { asset: payload.asset }
+        const failure = new ApiError(payload.error || `The upload server returned ${response.status}.`, response.status)
+        if (response.status > 0 && response.status < 500) throw failure
+        lastFailure = failure
+      } catch (reason) {
+        if (reason instanceof ApiError && reason.status > 0 && reason.status < 500) throw reason
+        lastFailure = reason
+      }
+      if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 800 * (attempt + 1)))
+    }
+    if (lastFailure instanceof ApiError) throw lastFailure
+    throw new ApiError(navigator.onLine ? 'The upload connection failed after three attempts. Please try the image again.' : 'The image cannot upload while the tablet is offline.', 0)
   },
 }
 

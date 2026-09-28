@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, NotebookTabs, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, FileText, FolderKanban, Heart, Layers3, NotebookTabs, Presentation, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSite } from '../App'
 import { OwnerClock } from '../components/OwnerClock'
@@ -11,6 +11,7 @@ import { getPublicEvents, getPublicItems } from '../lib/api'
 import { notesForCycle } from '../lib/cute-notes'
 import { showEasterEgg, unlockAchievement, unlockEggAchievement } from '../lib/achievements'
 import { localizeAuthoredDefault, useLanguage } from '../lib/i18n'
+import { validCalendarColour } from '../lib/calendar'
 import type { CalendarEvent, ContentItem } from '../types'
 
 export function HomePage() {
@@ -35,6 +36,13 @@ export function HomePage() {
   }, [])
 
   const featured = useMemo(() => items.filter((item) => item.featured).slice(0, 3), [items])
+  const recentNotes = useMemo(
+    () => items
+      .filter((item) => item.type === 'note')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 3),
+    [items],
+  )
   const previewDeck = items.find((item) => item.content.kind === 'presentation')
   const firstSlide = previewDeck?.content.kind === 'presentation' ? previewDeck.content.slides[0] : undefined
   const today = new Date().toISOString().slice(0, 10)
@@ -136,6 +144,21 @@ export function HomePage() {
         </div>
       </section>
 
+      {recentNotes.length > 0 && (
+        <section className="section-shell content-section home-notes-section">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow"><FileText size={15} />{text('Easy to find', 'Schnell gefunden')}</p>
+              <h2>{text('Recent study notes', 'Aktuelle Lernnotizen')}</h2>
+            </div>
+            <Link to="/notes" className="text-link">{text('View all notes', 'Alle Notizen ansehen')} <ArrowRight size={16} /></Link>
+          </div>
+          <div className="content-grid">
+            {recentNotes.map((item) => <ContentCard key={item.id} item={item} />)}
+          </div>
+        </section>
+      )}
+
       <StudyJourneySection items={items} />
 
       <section className="quick-links section-shell" aria-label={text('Browse by content type', 'Nach Inhaltstyp durchsuchen')}>
@@ -164,6 +187,11 @@ export function HomePage() {
           <div><strong>{text('Notebooks', 'Lernhefte')}</strong><small>{text('Read published handwritten pages', 'Veröffentlichte handschriftliche Seiten')}</small></div>
           <ArrowRight size={18} />
         </Link>
+        <Link to="/flashcards" className="quick-link quick-flashcards">
+          <span><Layers3 size={21} /></span>
+          <div><strong>{text('Flashcards', 'Karteikarten')}</strong><small>{text('Flip, recall and review', 'Umdrehen, erinnern und wiederholen')}</small></div>
+          <ArrowRight size={18} />
+        </Link>
       </section>
 
       <section className="desk-section section-shell">
@@ -176,7 +204,7 @@ export function HomePage() {
             <div className="home-agenda-title"><span><CalendarDays size={19} /></span><div><strong>{text('Coming up', 'Demnächst')}</strong><small>{text('Public milestones and important dates', 'Öffentliche Meilensteine und wichtige Termine')}</small></div></div>
             {upcoming.length ? <div>{upcoming.map((event) => {
               const date = new Date(`${event.date}T12:00:00`)
-              return <Link to="/calendar" key={event.id} className={`home-agenda-item category-${event.category}`}><time><strong>{date.getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span></time><div><strong>{event.title}</strong><small>{event.time || 'All day'} · {event.category}</small></div><ArrowRight size={16} /></Link>
+              return <Link to="/calendar" key={event.id} className={`home-agenda-item category-${event.category}`} style={{ '--event-colour': validCalendarColour(event.colour) } as React.CSSProperties}><time><strong>{date.getDate()}</strong><span>{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span></time><div><strong>{event.title}</strong><small>{event.time || 'All day'} · {event.category}</small></div><ArrowRight size={16} /></Link>
             })}</div> : <p className="home-agenda-empty">{text('The calendar is clear for now.', 'Der Kalender ist im Moment frei.')}</p>}
           </div>
           <div className="home-sticky-wall" aria-label={text('Learning reminders', 'Lernerinnerungen')} aria-live="polite">

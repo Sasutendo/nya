@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { adminApi, authApi, getPublicEvents, getPublicItems, getPublicWhiteboards, getSettings, recordView } from './api'
+import { adminApi, authApi, getPublicEvents, getPublicItems, getPublicStudyCards, getPublicWhiteboards, getSettings, recordView } from './api'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -43,8 +43,31 @@ describe('zero-configuration local preview', () => {
     const planner = await adminApi.planner()
 
     expect(planner.events.some((event) => event.visibility === 'private')).toBe(true)
+    expect(planner.templates.length).toBeGreaterThan(0)
     expect(planner.notes.length).toBeGreaterThan(0)
     expect(planner.tasks.length).toBeGreaterThan(0)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('creates and reuses a saved shift without a network request', async () => {
+    const now = new Date().toISOString()
+    const template = {
+      id: 'test_early_shift', title: 'Frühschicht', shortLabel: 'F', description: 'Station 2',
+      startTime: '06:00', endTime: '14:00', category: 'early_shift' as const,
+      colour: '#e79ac3', visibility: 'private' as const, createdAt: now, updatedAt: now,
+    }
+    await adminApi.saveShiftTemplate(template, true)
+    const savedTemplate = (await adminApi.planner()).templates.find((entry) => entry.id === template.id)
+    expect(savedTemplate?.endTime).toBe('14:00')
+
+    const event = {
+      id: 'test_early_shift_day', title: template.title, description: template.description,
+      date: '2026-10-05', time: template.startTime, endTime: template.endTime,
+      category: template.category, colour: template.colour, templateId: template.id,
+      visibility: template.visibility, createdAt: now, updatedAt: now,
+    }
+    await adminApi.saveEvent(event, true)
+    expect((await adminApi.planner()).events.find((entry) => entry.id === event.id)?.templateId).toBe(template.id)
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -64,8 +87,23 @@ describe('zero-configuration local preview', () => {
     const saved = await adminApi.studyHub()
 
     expect(saved.cards.some((entry) => entry.id === card.id)).toBe(true)
+    expect((await getPublicStudyCards()).some((entry) => entry.id === card.id)).toBe(false)
     expect(saved.skills.some((entry) => entry.id === skill.id)).toBe(true)
     expect(saved.reflections.some((entry) => entry.id === reflection.id)).toBe(true)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('publishes typed or handwritten flashcards for the public learning page', async () => {
+    const time = new Date().toISOString()
+    const card = {
+      id: 'published_ink_card', question: '', answer: 'Radius', category: 'Anatomy', published: true,
+      questionInk: [{ id: 'ink_1', colour: '#302128', size: 2.4, points: [{ x: .1, y: .2, pressure: .5 }, { x: .8, y: .7, pressure: .7 }] }],
+      answerInk: [], createdAt: time, updatedAt: time,
+    }
+    await adminApi.saveStudyCard(card, true)
+    const published = await getPublicStudyCards()
+
+    expect(published.find((entry) => entry.id === card.id)?.questionInk).toHaveLength(1)
     expect(fetch).not.toHaveBeenCalled()
   })
 

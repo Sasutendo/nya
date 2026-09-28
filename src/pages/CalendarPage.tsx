@@ -3,14 +3,11 @@ import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Download, MapPin, 
 import { Link } from 'react-router-dom'
 import { EmptyState, LoadingState } from '../components/Feedback'
 import { getPublicEvents } from '../lib/api'
-import type { CalendarEvent, CalendarEventCategory } from '../types'
+import { calendarCategoryLabel, validCalendarColour } from '../lib/calendar'
+import type { CalendarEvent } from '../types'
 import { useLanguage, type Language } from '../lib/i18n'
 
 const weekdays = { en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], de: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] }
-const categoryLabels: Record<CalendarEventCategory, [string, string]> = {
-  school: ['School', 'Schule'], placement: ['Placement', 'Praxiseinsatz'], assignment: ['Assignment', 'Aufgabe'], exam: ['Exam', 'Prüfung'], milestone: ['Milestone', 'Meilenstein'], personal: ['Personal', 'Persönlich'],
-}
-
 function isoDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
@@ -28,6 +25,10 @@ function eventOnDate(event: CalendarEvent, date: string): boolean {
   return event.date <= date && (event.endDate || event.date) >= date
 }
 
+function eventStyle(event: CalendarEvent): React.CSSProperties {
+  return { '--event-colour': validCalendarColour(event.colour) } as React.CSSProperties
+}
+
 function downloadIcs(events: CalendarEvent[]) {
   const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Nya Yuuki's Learning Corner//Calendar//EN", "CALSCALE:GREGORIAN"]
@@ -36,7 +37,14 @@ function downloadIcs(events: CalendarEvent[]) {
     const endDate = parseDate(event.endDate || event.date)
     endDate.setDate(endDate.getDate() + 1)
     lines.push('BEGIN:VEVENT', `UID:${event.id}@nya-learning-studio`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}`)
-    if (event.time) lines.push(`DTSTART:${start}T${event.time.replace(':', '')}00`)
+    if (event.time) {
+      lines.push(`DTSTART:${start}T${event.time.replace(':', '')}00`)
+      if (event.endTime) {
+        const timedEnd = parseDate(event.date)
+        if (event.endTime <= event.time) timedEnd.setDate(timedEnd.getDate() + 1)
+        lines.push(`DTEND:${isoDate(timedEnd).replaceAll('-', '')}T${event.endTime.replace(':', '')}00`)
+      }
+    }
     else lines.push(`DTSTART;VALUE=DATE:${start}`, `DTEND;VALUE=DATE:${isoDate(endDate).replaceAll('-', '')}`)
     lines.push(`SUMMARY:${escape(event.title)}`, `DESCRIPTION:${escape(event.description)}`, `CATEGORIES:${event.category.toUpperCase()}`, 'END:VEVENT')
   })
@@ -109,7 +117,7 @@ export function CalendarPage() {
                     <div key={dateValue} className={`calendar-day${outside ? ' is-outside' : ''}${dateValue === today ? ' is-today' : ''}`}>
                       <time dateTime={dateValue}>{date.getDate()}</time>
                       <div className="day-events">
-                        {dayEvents.slice(0, 3).map((event) => <span key={event.id} className={`mini-event category-${event.category}`} title={event.title}>{event.time && <small>{event.time}</small>}{event.title}</span>)}
+                        {dayEvents.slice(0, 3).map((event) => <span key={event.id} className={`mini-event category-${event.category}`} style={eventStyle(event)} title={event.title}>{event.time && <small>{event.time}</small>}{event.title}</span>)}
                         {dayEvents.length > 3 && <small className="more-events">+{dayEvents.length - 3} {text('more', 'weitere')}</small>}
                       </div>
                     </div>
@@ -122,9 +130,9 @@ export function CalendarPage() {
           <aside className="agenda-panel">
             <div className="agenda-heading"><div><p className="eyebrow"><Sparkles size={14} />{text('Coming up', 'Demnächst')}</p><h2>{text('Next on the journey', 'Als Nächstes auf der Reise')}</h2></div><span>{upcoming.length}</span></div>
             {upcoming.length ? <div className="agenda-list">{upcoming.map((event, index) => (
-              <article key={event.id} className={`agenda-card category-${event.category}${index === 0 ? ' is-next' : ''}`}>
+              <article key={event.id} className={`agenda-card category-${event.category}${index === 0 ? ' is-next' : ''}`} style={eventStyle(event)}>
                 <div className="agenda-date"><strong>{parseDate(event.date).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-GB', { month: 'short' }).format(parseDate(event.date))}</span></div>
-                <div><span className="agenda-category">{categoryLabels[event.category][language === 'de' ? 1 : 0]}</span><h3>{event.title}</h3><p><CalendarDays size={13} />{formatEventDate(event, language)}{event.time ? ` · ${event.time}` : ''}</p>{event.description && <small>{event.description}</small>}{event.relatedItemSlug && <Link to={`/item/${event.relatedItemSlug}`}>{text('Open related work', 'Zugehörige Arbeit öffnen')} <ArrowRight size={14} /></Link>}</div>
+                <div><span className="agenda-category">{calendarCategoryLabel(event.category, language)}</span><h3>{event.title}</h3><p><CalendarDays size={13} />{formatEventDate(event, language)}{event.time ? ` · ${event.time}${event.endTime ? `–${event.endTime}` : ''}` : ''}</p>{event.description && <small>{event.description}</small>}{event.relatedItemSlug && <Link to={`/item/${event.relatedItemSlug}`}>{text('Open related work', 'Zugehörige Arbeit öffnen')} <ArrowRight size={14} /></Link>}</div>
               </article>
             ))}</div> : <EmptyState title={text('A clear calendar', 'Ein freier Kalender')} message={text('Public dates and milestones will appear here once they are added.', 'Öffentliche Termine und Meilensteine erscheinen hier, sobald sie hinzugefügt wurden.')} />}
             <div className="calendar-privacy-note"><MapPin size={16} /><p>{text('Only events marked public are shown here. Personal deadlines can stay private in the owner planner.', 'Hier werden nur öffentlich markierte Termine angezeigt. Persönliche Fristen bleiben privat im Owner-Planer.')}</p></div>

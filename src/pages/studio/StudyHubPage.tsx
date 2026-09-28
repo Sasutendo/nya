@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
   BrainCircuit, Check, ChevronLeft, ChevronRight, CircleDot, Clock3, Layers3, LoaderCircle,
-  Pause, Play, Plus, RefreshCw, RotateCcw, Sparkles, Stethoscope, Trash2,
+  Eye, EyeOff, Pause, Play, Plus, RefreshCw, RotateCcw, Sparkles, Stethoscope, Trash2,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { EmptyState, ErrorNotice, LoadingState } from '../../components/Feedback'
+import { StudyCardInk } from '../../components/StudyCardInk'
 import { adminApi } from '../../lib/api'
 import { newId } from '../../lib/format'
 import { showEasterEgg, unlockAchievement } from '../../lib/achievements'
-import type { NursingSkill, NursingSkillStatus, StudyCard, StudyHubData, StudyReflection } from '../../types'
+import { useLanguage } from '../../lib/i18n'
+import type { NursingSkill, NursingSkillStatus, StudyCard, StudyCardInkStroke, StudyHubData, StudyReflection } from '../../types'
 import { StudioNav, useStudioSession } from './StudioPages'
 
 const EMPTY_DATA: StudyHubData = { cards: [], skills: [], reflections: [] }
@@ -29,6 +31,7 @@ function today(): string { return new Date().toISOString().slice(0, 10) }
 
 export function StudyHubPage() {
   const session = useStudioSession()
+  const { text } = useLanguage()
   const [data, setData] = useState<StudyHubData>(EMPTY_DATA)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -45,6 +48,9 @@ export function StudyHubPage() {
   const [cardQuestion, setCardQuestion] = useState('')
   const [cardAnswer, setCardAnswer] = useState('')
   const [cardCategory, setCardCategory] = useState('General')
+  const [questionInk, setQuestionInk] = useState<StudyCardInkStroke[]>([])
+  const [answerInk, setAnswerInk] = useState<StudyCardInkStroke[]>([])
+  const [cardPublished, setCardPublished] = useState(false)
 
   const [skillTitle, setSkillTitle] = useState('')
   const [skillCategory, setSkillCategory] = useState('Core care')
@@ -90,14 +96,25 @@ export function StudyHubPage() {
 
   async function addCard(event: React.FormEvent) {
     event.preventDefault()
-    if (!cardQuestion.trim() || !cardAnswer.trim()) return
+    if ((!cardQuestion.trim() && !questionInk.length) || (!cardAnswer.trim() && !answerInk.length)) {
+      setError(text('Add a typed or handwritten front and back.', 'Füge eine getippte oder handgeschriebene Vorder- und Rückseite hinzu.'))
+      return
+    }
     const time = new Date().toISOString()
-    const card: StudyCard = { id: newId('card'), question: cardQuestion.trim(), answer: cardAnswer.trim(), category: cardCategory.trim() || 'General', createdAt: time, updatedAt: time }
+    const card: StudyCard = { id: newId('card'), question: cardQuestion.trim(), answer: cardAnswer.trim(), category: cardCategory.trim() || 'General', questionInk, answerInk, published: cardPublished, createdAt: time, updatedAt: time }
     try {
       const result = await adminApi.saveStudyCard(card, true)
       setData((current) => ({ ...current, cards: [result.card, ...current.cards] }))
-      setCardQuestion(''); setCardAnswer(''); setCardIndex(0); setCardFlipped(false)
+      setCardQuestion(''); setCardAnswer(''); setQuestionInk([]); setAnswerInk([]); setCardPublished(false); setCardIndex(0); setCardFlipped(false)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'The card could not be saved.') }
+  }
+
+  async function toggleCardPublished(card: StudyCard) {
+    const updated = { ...card, published: !card.published }
+    try {
+      const result = await adminApi.saveStudyCard(updated)
+      setData((current) => ({ ...current, cards: current.cards.map((candidate) => candidate.id === card.id ? result.card : candidate) }))
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'The card could not be updated.') }
   }
 
   async function removeCard(card: StudyCard) {
@@ -191,14 +208,25 @@ export function StudyHubPage() {
         </section>
 
         <section className="study-tool-card flashcard-tool">
-          <div className="study-tool-heading"><span><Layers3 size={19} /></span><div><p className="eyebrow">Active recall</p><h2>Flashcards</h2></div></div>
+          <div className="study-tool-heading"><span><Layers3 size={19} /></span><div><p className="eyebrow">{text('Active recall', 'Aktives Erinnern')}</p><h2>{text('Flashcards', 'Karteikarten')}</h2></div></div>
           {currentCard ? <>
             <button type="button" className={`study-flashcard${cardFlipped ? ' is-flipped' : ''}`} onClick={() => setCardFlipped((flipped) => !flipped)} aria-label={cardFlipped ? 'Show question' : 'Show answer'}>
-              <small>{currentCard.category} · {cardFlipped ? 'Answer' : 'Question'}</small><strong>{cardFlipped ? currentCard.answer : currentCard.question}</strong><span>Tap to flip</span>
+              <small>{currentCard.category} · {cardFlipped ? text('Back', 'Rückseite') : text('Front', 'Vorderseite')}</small>
+              {(cardFlipped ? currentCard.answer : currentCard.question) && <strong>{cardFlipped ? currentCard.answer : currentCard.question}</strong>}
+              {((cardFlipped ? currentCard.answerInk : currentCard.questionInk) || []).length > 0 && <StudyCardInk strokes={(cardFlipped ? currentCard.answerInk : currentCard.questionInk) || []} label={cardFlipped ? text('Handwritten answer', 'Handgeschriebene Antwort') : text('Handwritten question', 'Handgeschriebene Frage')} />}
+              <span>{text('Tap to flip', 'Zum Umdrehen tippen')}</span>
             </button>
-            <div className="flashcard-controls"><button type="button" onClick={() => moveCard(-1)} aria-label="Previous card"><ChevronLeft size={18} /></button><span>{cardIndex % data.cards.length + 1} / {data.cards.length}</span><button type="button" onClick={() => moveCard(1)} aria-label="Next card"><ChevronRight size={18} /></button><button type="button" onClick={() => { setCardIndex(Math.floor(Math.random() * data.cards.length)); setCardFlipped(false) }}><RefreshCw size={16} />Shuffle</button><button type="button" onClick={() => removeCard(currentCard)} aria-label="Delete current card"><Trash2 size={16} /></button></div>
+            <div className="flashcard-controls"><button type="button" onClick={() => moveCard(-1)} aria-label="Previous card"><ChevronLeft size={18} /></button><span>{cardIndex % data.cards.length + 1} / {data.cards.length}</span><button type="button" onClick={() => moveCard(1)} aria-label="Next card"><ChevronRight size={18} /></button><button type="button" onClick={() => { setCardIndex(Math.floor(Math.random() * data.cards.length)); setCardFlipped(false) }}><RefreshCw size={16} />{text('Shuffle', 'Mischen')}</button><button type="button" className={currentCard.published ? 'is-published' : ''} onClick={() => toggleCardPublished(currentCard)}>{currentCard.published ? <Eye size={16} /> : <EyeOff size={16} />}{currentCard.published ? text('Public', 'Öffentlich') : text('Private', 'Privat')}</button><button type="button" onClick={() => removeCard(currentCard)} aria-label="Delete current card"><Trash2 size={16} /></button></div>
           </> : <EmptyState title="No flashcards yet" message="Add the first question below." />}
-          <details className="study-composer"><summary><Plus size={16} />Add a flashcard</summary><form onSubmit={addCard}><label>Question<textarea rows={2} value={cardQuestion} onChange={(event) => setCardQuestion(event.target.value)} required /></label><label>Answer<textarea rows={3} value={cardAnswer} onChange={(event) => setCardAnswer(event.target.value)} required /></label><label>Category<input value={cardCategory} onChange={(event) => setCardCategory(event.target.value)} /></label><button className="button button-primary" type="submit"><Plus size={16} />Save card</button></form></details>
+          <details className="study-composer"><summary><Plus size={16} />{text('Add a flashcard', 'Karteikarte hinzufügen')}</summary><form onSubmit={addCard}>
+            <label>{text('Front — type', 'Vorderseite — tippen')}<textarea rows={2} value={cardQuestion} onChange={(event) => setCardQuestion(event.target.value)} placeholder={text('Question or prompt (optional when handwritten)', 'Frage oder Begriff (optional bei Handschrift)')} /></label>
+            <div className="study-ink-field"><strong>{text('Front — write with pen', 'Vorderseite — mit Stift schreiben')}</strong><StudyCardInk strokes={questionInk} onChange={setQuestionInk} label={text('Write on the front of the flashcard', 'Auf die Vorderseite der Karteikarte schreiben')} /></div>
+            <label>{text('Back — type', 'Rückseite — tippen')}<textarea rows={3} value={cardAnswer} onChange={(event) => setCardAnswer(event.target.value)} placeholder={text('Answer (optional when handwritten)', 'Antwort (optional bei Handschrift)')} /></label>
+            <div className="study-ink-field"><strong>{text('Back — write with pen', 'Rückseite — mit Stift schreiben')}</strong><StudyCardInk strokes={answerInk} onChange={setAnswerInk} label={text('Write on the back of the flashcard', 'Auf die Rückseite der Karteikarte schreiben')} /></div>
+            <label>{text('Deck / category', 'Stapel / Kategorie')}<input value={cardCategory} onChange={(event) => setCardCategory(event.target.value)} /></label>
+            <label className="flashcard-publish-toggle"><input type="checkbox" checked={cardPublished} onChange={(event) => setCardPublished(event.target.checked)} /><span><strong>{text('Publish this card', 'Diese Karte veröffentlichen')}</strong><small>{text('Visitors can practise it on the public Flashcards page.', 'Besucher können sie auf der öffentlichen Karteikarten-Seite lernen.')}</small></span></label>
+            <button className="button button-primary" type="submit"><Plus size={16} />{text('Save card', 'Karte speichern')}</button>
+          </form></details>
         </section>
 
         <section className="study-tool-card skills-tool">
