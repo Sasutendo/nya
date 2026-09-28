@@ -18,7 +18,7 @@
     {
       "binding": "DB",
       "database_name": "nya-lernstudio-db",
-      "database_id": "e26f488a-a49d-44df-b4f8-3f447f430b00",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
       "migrations_dir": "migrations"
     }
   ]
