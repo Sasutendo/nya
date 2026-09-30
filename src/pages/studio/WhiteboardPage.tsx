@@ -217,7 +217,11 @@ export function WhiteboardPage() {
   }, [lockedBoardIds])
 
   useEffect(() => {
-    const savedOffline = () => setSaveState('offline')
+    const savedOffline = () => {
+      // An older network request may finish after newer pen strokes were queued.
+      // Never let that stale result claim the newest draft is already durable.
+      if (!pendingLocalStages.current.size) setSaveState('offline')
+    }
     const sync = () => { setSaveState('saving'); adminApi.syncWhiteboards().then(({ boards: synced, queued }) => { synced.forEach((candidate) => savedRevisions.current.set(candidate.id, candidate.revision || 1)); boardsRef.current = synced; setBoards(synced); setActiveId((current) => synced.some((candidate) => candidate.id === current) ? current : synced[0]?.id || ''); setActivePageId((current) => synced.some((candidate) => candidate.pages.some((item) => item.id === current)) ? current : synced[0]?.pages[0]?.id || ''); setSaveState(queued ? 'offline' : 'saved'); setError('') }).catch((reason) => { setSaveState('unsaved'); setError(reason instanceof Error ? reason.message : 'Offline pages could not sync yet.') }) }
     window.addEventListener('nya-offline-save', savedOffline)
     window.addEventListener('online', sync)
@@ -297,15 +301,20 @@ export function WhiteboardPage() {
     pendingSaves.current.set(next.id, next)
     pendingLocalStages.current.set(next.id, next)
     setSaveState('saving')
-    if (localStageTimer.current) window.clearTimeout(localStageTimer.current)
-    localStageTimer.current = window.setTimeout(() => {
-      void flushLocalStages().then(() => {
-        if (version === saveVersion.current && pendingSaves.current.has(next.id)) setSaveState('offline')
-      }).catch((reason) => {
-        if (version === saveVersion.current) setSaveState('unsaved')
-        setError(reason instanceof Error ? reason.message : 'The newest changes could not be stored on this device yet.')
-      })
-    }, lowMemoryTablet() ? 420 : 180)
+    // This is a checkpoint throttle, not a debounce. Re-arming the timer for
+    // every pen-up meant continuous handwriting could postpone IndexedDB
+    // forever and then disappear if Android reloaded the tab.
+    if (!localStageTimer.current) {
+      localStageTimer.current = window.setTimeout(() => {
+        const checkpointVersion = saveVersion.current
+        void flushLocalStages().then(() => {
+          if (checkpointVersion === saveVersion.current && !pendingLocalStages.current.size && pendingSaves.current.size) setSaveState('offline')
+        }).catch((reason) => {
+          if (checkpointVersion === saveVersion.current) setSaveState('unsaved')
+          setError(reason instanceof Error ? reason.message : 'The newest changes could not be stored on this device yet.')
+        })
+      }, lowMemoryTablet() ? 420 : 180)
+    }
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
       const batch = [...pendingSaves.current.values()]
